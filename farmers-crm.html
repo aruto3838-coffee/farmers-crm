@@ -193,6 +193,8 @@
   <aside class="sidebar">
     <div class="sidebar-header">
       <input type="text" id="searchInput" placeholder="顧客を検索..." oninput="renderCustomerList()">
+      <button onclick="toggleRealName()" id="btnEye" title="本名の表示/非表示"
+        style="background:none;border:1px solid var(--border);border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#aaa">👁</button>
       <button class="btn-add-customer" onclick="openCustomerModal()" title="顧客を追加">＋</button>
     </div>
     <div style="padding:4px 10px;border-bottom:1px solid var(--border);background:#fafafa;display:flex;align-items:center;gap:6px">
@@ -479,6 +481,23 @@ let selectedCustomerId = null;
 let editingCustomerId = null;
 let editingHistoryId = null;
 let _firstLoad = true;
+let showRealName = false;
+
+function toggleRealName() {
+  showRealName = !showRealName;
+  const btn = document.getElementById('btnEye');
+  if (btn) {
+    btn.style.color = showRealName ? 'var(--green)' : '#aaa';
+    btn.style.borderColor = showRealName ? 'var(--green-mid)' : 'var(--border)';
+    btn.title = showRealName ? '本名を非表示にする' : '本名を表示する';
+  }
+  renderCustomerList();
+  if (selectedCustomerId) renderDetail();
+}
+
+function maskedName(c) {
+  return showRealName ? escHtml(c.name) : '●●●';
+}
 
 // ===== Firestoreリアルタイム同期 =====
 db.collection('customers').onSnapshot(snapshot => {
@@ -618,7 +637,7 @@ function renderCustomerList() {
       <div class="customer-item ${c.id===selectedCustomerId?'active':''}" onclick="selectCustomer('${c.id}')">
         ${avatarHtml(c, 'customer-avatar')}
         <div class="customer-item-info">
-          <div class="customer-item-name">${c.libeName?`🌿 ${escHtml(c.libeName)} <span style="font-size:0.72rem;color:#aaa;font-weight:400">(${escHtml(c.name)})</span>`:escHtml(c.name)}</div>
+          <div class="customer-item-name">${c.libeName?`🌿 ${escHtml(c.libeName)} <span style="font-size:0.72rem;color:#aaa;font-weight:400">(${maskedName(c)})</span>`:maskedName(c)}</div>
           <div class="customer-item-sub">${last ? '最終: '+formatDate(last) : 'まだ記録なし'}</div>
         </div>
         ${cnt ? `<span class="customer-badge">${cnt}回</span>` : ''}
@@ -645,8 +664,8 @@ function renderDetail() {
         <div class="detail-info">
           <div class="detail-name">
             ${c.libeName
-              ? `<span style="font-size:1.5rem;color:var(--green);font-weight:800">🌿 ${escHtml(c.libeName)}</span><br><span style="font-size:0.82rem;color:#aaa;font-weight:400">${escHtml(c.name)}</span>`
-              : escHtml(c.name)}
+              ? `<span style="font-size:1.5rem;color:var(--green);font-weight:800">🌿 ${escHtml(c.libeName)}</span><br><span style="font-size:0.82rem;color:#aaa;font-weight:400">${maskedName(c)}</span>`
+              : maskedName(c)}
           </div>
           <div class="detail-meta">
             ${c.profileUrl?`<span><a href="${escHtml(c.profileUrl)}" target="_blank" rel="noopener" style="color:#4a90d9;text-decoration:none">🔗 プロフィール</a></span>`:''}
