@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ファーマーズマーケット 顧客管理</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --green: #4a7c59;
+    --green-light: #e8f5e9;
+    --green-mid: #81b898;
+    --brown: #6d4c41;
+    --brown-light: #efebe9;
+    --cream: #fdf6ec;
+    --gray: #666;
+    --border: #ddd;
+    --shadow: 0 2px 8px rgba(0,0,0,0.1);
+    --radius: 10px;
+  }
+  body { font-family: 'Hiragino Sans', 'Yu Gothic', sans-serif; background: var(--cream); color: #333; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ヘッダー */
+  header { background: var(--green); color: white; padding: 14px 20px; display: flex; align-items: center; gap: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); flex-shrink: 0; }
+  header h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: 0.05em; }
+  header .subtitle { font-size: 0.75rem; opacity: 0.8; margin-top: 2px; }
+
+  /* レイアウト */
+  .layout { display: flex; flex: 1; overflow: hidden; }
+
+  /* サイドバー */
+  .sidebar { width: 280px; background: white; border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; }
+  .sidebar-header input { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: 20px; font-size: 0.85rem; outline: none; background: var(--cream); }
+  .sidebar-header input:focus { border-color: var(--green-mid); }
+  .btn-add-customer { background: var(--green); color: white; border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 1.3rem; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .btn-add-customer:hover { background: #3a6b49; }
+  .customer-count { padding: 6px 16px; font-size: 0.75rem; color: var(--gray); background: var(--green-light); border-bottom: 1px solid var(--border); }
+  .customer-list { flex: 1; overflow-y: auto; }
+  .customer-item { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.15s; display: flex; align-items: center; gap: 10px; }
+  .customer-item:hover { background: var(--green-light); }
+  .customer-item.active { background: var(--green-light); border-left: 3px solid var(--green); }
+  .customer-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--green-mid); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: bold; flex-shrink: 0; }
+  .customer-item-info { flex: 1; min-width: 0; }
+  .customer-item-name { font-size: 0.9rem; font-weight: 600; }
+  .customer-item-sub { font-size: 0.75rem; color: var(--gray); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .customer-badge { background: var(--green); color: white; border-radius: 10px; font-size: 0.7rem; padding: 2px 7px; flex-shrink: 0; }
+
+  /* メインエリア */
+  .main { flex: 1; overflow-y: auto; padding: 24px; background: var(--cream); }
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--gray); gap: 12px; }
+  .empty-state .icon { font-size: 4rem; }
+
+  /* 顧客詳細 */
+  .customer-detail { max-width: 760px; }
+  .detail-header { background: white; border-radius: var(--radius); padding: 20px 24px; box-shadow: var(--shadow); display: flex; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
+  .detail-avatar { width: 60px; height: 60px; border-radius: 50%; background: var(--green); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; flex-shrink: 0; }
+  .detail-info { flex: 1; }
+  .detail-name { font-size: 1.3rem; font-weight: 700; margin-bottom: 6px; }
+  .detail-meta { display: flex; gap: 16px; flex-wrap: wrap; }
+  .detail-meta span { font-size: 0.82rem; color: var(--gray); display: flex; align-items: center; gap: 4px; }
+  .detail-actions { display: flex; gap: 8px; }
+
+  /* ボタン */
+  .btn { padding: 7px 14px; border-radius: 6px; border: none; font-size: 0.82rem; cursor: pointer; font-weight: 600; transition: opacity 0.15s; }
+  .btn:hover { opacity: 0.85; }
+  .btn-primary { background: var(--green); color: white; }
+  .btn-secondary { background: white; color: var(--green); border: 1px solid var(--green); }
+  .btn-danger { background: white; color: #e53935; border: 1px solid #e53935; }
+  .btn-brown { background: var(--brown); color: white; }
+
+  /* 統計 */
+  .stats-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .stat-card { background: white; border-radius: var(--radius); padding: 14px 18px; box-shadow: var(--shadow); flex: 1; min-width: 120px; text-align: center; }
+  .stat-card .val { font-size: 1.6rem; font-weight: 700; color: var(--green); }
+  .stat-card .lbl { font-size: 0.75rem; color: var(--gray); margin-top: 2px; }
+
+  /* メモカード */
+  .info-card { background: white; border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow); margin-bottom: 20px; }
+  .info-card h3 { font-size: 0.85rem; color: var(--gray); margin-bottom: 8px; font-weight: 600; }
+  .info-card p { font-size: 0.9rem; line-height: 1.6; color: #444; white-space: pre-wrap; }
+
+  /* 購入履歴 */
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .section-title { font-size: 1rem; font-weight: 700; color: var(--brown); }
+  .history-list { display: flex; flex-direction: column; gap: 14px; }
+
+  .history-card { background: white; border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); border-left: 4px solid var(--green-mid); }
+  .history-top { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .history-top-row1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .history-top-row2 { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .history-date-badge { font-size: 0.8rem; color: var(--gray); background: var(--green-light); padding: 4px 12px; border-radius: 12px; font-weight: 600; white-space: nowrap; }
+  .history-product { font-size: 1rem; font-weight: 700; color: var(--brown); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .history-amount { font-size: 0.85rem; font-weight: 600; color: var(--green); background: var(--green-light); padding: 3px 10px; border-radius: 10px; }
+  .history-actions { display: flex; gap: 6px; opacity: 1; }
+  .btn-icon { background: none; border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; font-size: 0.75rem; cursor: pointer; color: var(--gray); }
+  .btn-icon:hover { background: #f5f5f5; }
+  .btn-icon.del:hover { color: #e53935; border-color: #e53935; }
+
+  /* 豆グリッド */
+  .bean-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .bean-item { background: var(--brown-light); border-radius: 8px; padding: 10px 14px; }
+  .bean-item.bonus { background: #fff8e1; border: 1px dashed #f9a825; }
+  .bean-label { font-size: 0.72rem; color: var(--gray); font-weight: 600; margin-bottom: 3px; }
+  .bean-name { font-size: 0.9rem; font-weight: 600; color: var(--brown); }
+  .bean-type { display: inline-block; font-size: 0.7rem; margin-top: 4px; padding: 2px 7px; border-radius: 8px; background: white; color: var(--brown); border: 1px solid var(--border); }
+  .bean-item.bonus .bean-name { color: #e65100; }
+  .bean-item.bonus .bean-type { background: white; color: #e65100; border-color: #f9a825; }
+
+  /* メッセージカード */
+  .message-box { background: #fffde7; border-left: 3px solid #f9a825; padding: 10px 14px; border-radius: 0 8px 8px 0; }
+  .message-label { font-size: 0.72rem; color: #a0a0a0; margin-bottom: 5px; font-weight: 600; }
+  .message-text { font-size: 0.88rem; color: #555; line-height: 1.7; white-space: pre-wrap; }
+
+  .empty-history { text-align: center; padding: 40px 20px; color: var(--gray); background: white; border-radius: var(--radius); box-shadow: var(--shadow); }
+
+  /* モーダル */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: white; border-radius: 14px; padding: 28px; width: 520px; max-width: 95vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.2); animation: slideUp 0.2s ease; }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .modal h2 { font-size: 1.1rem; margin-bottom: 20px; color: var(--green); }
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--gray); margin-bottom: 5px; }
+  .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 7px; font-size: 0.9rem; outline: none; font-family: inherit; transition: border-color 0.15s; background: #fafafa; }
+  .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--green-mid); background: white; }
+  .form-group textarea { resize: vertical; min-height: 90px; }
+  .form-row { display: flex; gap: 12px; }
+  .form-row .form-group { flex: 1; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+  /* 豆入力行（銘柄＋豆/挽き豆） */
+  .bean-input-row { display: flex; gap: 8px; align-items: flex-end; }
+  .bean-input-row input { flex: 1; }
+  .bean-input-row select { width: 120px; flex-shrink: 0; }
+
+  /* 区切り線 */
+  .modal-divider { border: none; border-top: 1px solid #f0f0f0; margin: 16px 0; }
+
+  /* アバター画像 */
+  .customer-avatar.has-photo,
+  .detail-avatar.has-photo { background: transparent; overflow: hidden; padding: 0; }
+  .customer-avatar.has-photo img,
+  .detail-avatar.has-photo img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+
+  /* スクロールバー */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* トースト */
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(60px); background: #333; color: white; padding: 10px 20px; border-radius: 24px; font-size: 0.85rem; z-index: 200; transition: transform 0.3s ease; pointer-events: none; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<header>
+  <div style="font-size:1.8rem">☕</div>
+  <div>
+    <h1>ファーマーズマーケット 顧客管理</h1>
+    <div class="subtitle">お客様の豆・メッセージカード記録</div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <input type="text" id="searchInput" placeholder="顧客を検索..." oninput="renderCustomerList()">
+      <button class="btn-add-customer" onclick="openCustomerModal()" title="顧客を追加">＋</button>
+    </div>
+    <div style="padding:4px 10px;border-bottom:1px solid var(--border);background:#fafafa;display:flex;align-items:center;gap:6px">
+      <span style="font-size:0.72rem;color:#888;flex-shrink:0">並び順</span>
+      <select id="sortSelect" onchange="renderCustomerList()" style="flex:1;font-size:0.75rem;border:1px solid var(--border);border-radius:4px;padding:3px 4px;background:white;color:#333">
+        <option value="orderDate">最新注文日</option>
+        <option value="roastDate">最新焙煎日</option>
+        <option value="count">注文回数（多い順）</option>
+        <option value="name">リベネーム順</option>
+      </select>
+    </div>
+    <div style="padding:4px 10px;border-bottom:1px solid var(--border);background:#fafafa;display:flex;align-items:center;gap:6px">
+      <span style="font-size:0.72rem;color:#888;flex-shrink:0">商品</span>
+      <select id="productFilter" onchange="renderCustomerList()" style="flex:1;font-size:0.75rem;border:1px solid var(--border);border-radius:4px;padding:3px 4px;background:white;color:#333">
+        <option value="all">すべて</option>
+        <option value="single">シングルオリジン（豆・挽き豆）</option>
+        <option value="drip">ドリップバッグ</option>
+      </select>
+    </div>
+    <div style="padding:4px 10px;border-bottom:1px solid var(--border);background:#fafafa;display:flex;align-items:center;gap:4px">
+      <span style="font-size:0.72rem;color:#888;flex-shrink:0">発送日</span>
+      <input type="date" id="shipDateFilter" oninput="renderCustomerList()"
+        style="flex:1;font-size:0.72rem;border:1px solid var(--border);border-radius:4px;padding:3px 4px;background:white;color:#333">
+      <button onclick="setShipDateToday()"
+        style="font-size:0.7rem;padding:3px 7px;border:1px solid var(--green-mid);border-radius:4px;background:var(--green-light);color:var(--green);cursor:pointer;flex-shrink:0">今日</button>
+      <button onclick="clearShipDateFilter()"
+        style="font-size:0.7rem;padding:3px 7px;border:1px solid #ddd;border-radius:4px;background:white;color:#888;cursor:pointer;flex-shrink:0">✕</button>
+    </div>
+    <div class="customer-count" id="customerCount">読み込み中...</div>
+    <div class="customer-list" id="customerList"></div>
+  </aside>
+
+  <main class="main" id="main">
+    <div class="empty-state">
+      <div class="icon">☕</div>
+      <p>左から顧客を選んでください</p>
+      <p style="font-size:0.8rem;color:#aaa">または「＋」で新規顧客を追加</p>
+    </div>
+  </main>
+</div>
+
+<!-- 顧客登録モーダル -->
+<div class="modal-overlay" id="customerModal">
+  <div class="modal">
+    <h2 id="customerModalTitle">👤 顧客を追加</h2>
+    <div class="form-group">
+      <label>お名前 <span style="color:red">*</span></label>
+      <input type="text" id="cName" placeholder="山田 花子" oninput="previewPhoto()">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>🌿 リベネーム</label>
+        <input type="text" id="cLibeName" placeholder="リベシティ上のニックネーム">
+      </div>
+      <div class="form-group">
+        <label>🔗 プロフィールURL</label>
+        <input type="url" id="cProfileUrl" placeholder="https://...">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>🖼 プロフィール画像URL <span style="font-size:0.75rem;color:#aaa;font-weight:400">（プロフィール画像を右クリック→「画像アドレスをコピー」）</span></label>
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <input type="url" id="cPhotoUrl" placeholder="https://..." style="flex:1" oninput="previewPhoto()">
+        <div id="photoPreview" style="width:48px;height:48px;border-radius:50%;background:var(--green-mid);color:white;display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:bold;flex-shrink:0;overflow:hidden;border:2px solid var(--border)"></div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>📮 メッセージカードの内容（定番・メモ）</label>
+      <textarea id="cMemo" rows="3" placeholder="このお客様に送るカードの定番文や好みのメモなど…"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('customerModal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveCustomer()">💾 保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 発送記録モーダル -->
+<div class="modal-overlay" id="historyModal">
+  <div class="modal">
+    <h2 id="historyModalTitle">📦 発送記録を追加</h2>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>注文日 <span style="color:red">*</span></label>
+        <input type="date" id="hDate">
+      </div>
+      <div class="form-group">
+        <label>発送予定日</label>
+        <input type="date" id="hShipDate">
+      </div>
+      <div class="form-group">
+        <label>焙煎日</label>
+        <input type="date" id="hRoastDate">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>商品名 <span style="color:red">*</span></label>
+        <select id="hProduct" onchange="onProductChange()">
+          <option value="">選択してください</option>
+          <option>【２種】シングルオリジン</option>
+          <option>【１種】シングルオリジン</option>
+          <option>【8袋入り】ドリップバッグ</option>
+          <option>【4袋入り】ドリップバッグ</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>金額（円）</label>
+        <input type="number" id="hAmount" placeholder="3000">
+      </div>
+    </div>
+
+    <!-- シングルオリジン専用セクション -->
+    <div id="secSingle" style="display:none">
+      <hr class="modal-divider">
+      <div class="form-group">
+        <label>豆のまま / 挽き豆</label>
+        <select id="hBeanGrind">
+          <option value="">未選択</option>
+          <option value="豆のまま">豆のまま</option>
+          <option value="挽き豆">挽き豆</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>☕ 銘柄１</label>
+        <div class="form-row" style="margin-bottom:6px">
+          <select id="hBean1Sel" onchange="onBeanChange('1')" style="flex:1">
+            <option value="">未選択</option>
+            <option>エチオピアN</option>
+            <option>エチオピアW</option>
+            <option>ケニアW</option>
+            <option>ブルンジN</option>
+            <option value="その他">その他</option>
+          </select>
+          <input type="text" id="hBean1Custom" placeholder="銘柄名を入力" style="flex:1;display:none">
+        </div>
+        <input type="text" id="hBean1Note" placeholder="農園名など備考">
+      </div>
+      <div class="form-group">
+        <label>☕ 銘柄２</label>
+        <div class="form-row" style="margin-bottom:6px">
+          <select id="hBean2Sel" onchange="onBeanChange('2')" style="flex:1">
+            <option value="">未選択</option>
+            <option>エチオピアN</option>
+            <option>エチオピアW</option>
+            <option>ケニアW</option>
+            <option>ブルンジN</option>
+            <option value="その他">その他</option>
+          </select>
+          <input type="text" id="hBean2Custom" placeholder="銘柄名を入力" style="flex:1;display:none">
+        </div>
+        <input type="text" id="hBean2Note" placeholder="農園名など備考">
+      </div>
+      <!-- 2個目セクション -->
+      <div style="margin:8px 0 4px">
+        <button type="button" id="btn2ndSet" onclick="toggle2ndSet()"
+          style="background:none;border:1px dashed #81b898;color:#4a7c59;border-radius:6px;padding:5px 14px;font-size:0.82rem;cursor:pointer;width:100%">
+          ＋ 2個目の銘柄を追加
+        </button>
+      </div>
+      <div id="sec2ndSet" style="display:none;background:#f9fffe;border:1px solid #c8e6c9;border-radius:8px;padding:12px;margin-bottom:8px">
+        <div style="font-size:0.8rem;color:#4a7c59;font-weight:600;margin-bottom:8px">📦 2個目</div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label>☕ 銘柄３</label>
+          <div class="form-row" style="margin-bottom:6px">
+            <select id="hBean3Sel" onchange="onBeanChange('3')" style="flex:1">
+              <option value="">未選択</option>
+              <option>エチオピアN</option>
+              <option>エチオピアW</option>
+              <option>ケニアW</option>
+              <option>ブルンジN</option>
+              <option value="その他">その他</option>
+            </select>
+            <input type="text" id="hBean3Custom" placeholder="銘柄名を入力" style="flex:1;display:none">
+          </div>
+          <input type="text" id="hBean3Note" placeholder="農園名など備考">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>☕ 銘柄４</label>
+          <div class="form-row" style="margin-bottom:6px">
+            <select id="hBean4Sel" onchange="onBeanChange('4')" style="flex:1">
+              <option value="">未選択</option>
+              <option>エチオピアN</option>
+              <option>エチオピアW</option>
+              <option>ケニアW</option>
+              <option>ブルンジN</option>
+              <option value="その他">その他</option>
+            </select>
+            <input type="text" id="hBean4Custom" placeholder="銘柄名を入力" style="flex:1;display:none">
+          </div>
+          <input type="text" id="hBean4Note" placeholder="農園名など備考">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>🎁 おまけ銘柄</label>
+        <div class="form-row" style="margin-bottom:6px">
+          <select id="hBeanBonusSel" onchange="onBeanChange('Bonus')" style="flex:1">
+            <option value="">未選択</option>
+            <option>エチオピアN</option>
+            <option>エチオピアW</option>
+            <option>ケニアW</option>
+            <option>ブルンジN</option>
+            <option value="その他">その他</option>
+          </select>
+          <input type="text" id="hBeanBonusCustom" placeholder="銘柄名を入力" style="flex:1;display:none">
+        </div>
+        <input type="text" id="hBonusBeanNote" placeholder="農園名など備考">
+      </div>
+    </div>
+
+    <!-- 全商品共通セクション（商品選択後に表示） -->
+    <div id="secCommon" style="display:none">
+      <hr class="modal-divider">
+      <div class="form-group">
+        <label>🏷 同封したシールの種類</label>
+        <input type="text" id="hSeal" placeholder="例：ありがとうシール、季節のシール">
+      </div>
+      <div class="form-group">
+        <label>📮 同封したメッセージカードの内容</label>
+        <textarea id="hMessage" rows="4" placeholder="今回同封したカードに書いた文をそのまま記録…"></textarea>
+      </div>
+    </div>
+
+    <div class="form-group" style="margin-top:12px">
+      <label>💬 注文時コメント</label>
+      <input type="text" id="hNote" placeholder="注文時にいただいたコメントなど">
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('historyModal')">キャンセル</button>
+      <button class="btn btn-brown" onclick="saveHistory()">📦 記録する</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+<script>
+// ===== Firebase設定 =====
+const firebaseConfig = {
+  apiKey: "AIzaSyBMpHcVSPRZ4-ch7Pmim7H98lR7k2DIwjY",
+  authDomain: "farmers-crm.firebaseapp.com",
+  projectId: "farmers-crm",
+  storageBucket: "farmers-crm.firebasestorage.app",
+  messagingSenderId: "67974947185",
+  appId: "1:67974947185:web:8ffe1469679ac9131f56d0"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+let customers = [];
+let selectedCustomerId = null;
+let editingCustomerId = null;
+let editingHistoryId = null;
+let _firstLoad = true;
+
+// ===== Firestoreリアルタイム同期 =====
+db.collection('customers').onSnapshot(snapshot => {
+  customers = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (_firstLoad) { _firstLoad = false; _migrateLocalStorage(); }
+  renderCustomerList();
+  if (selectedCustomerId && customers.some(c => c.id === selectedCustomerId)) renderDetail();
+}, () => {
+  document.getElementById('customerCount').textContent = '⚠️ 接続できません（オフライン）';
+});
+
+// ===== LocalStorage → Firebase 移行 =====
+async function _migrateLocalStorage() {
+  const raw = localStorage.getItem('fm_customers');
+  if (!raw) return;
+  const local = JSON.parse(raw);
+  if (!local.length) { localStorage.removeItem('fm_customers'); return; }
+  if (customers.length > 0) { localStorage.removeItem('fm_customers'); return; }
+  if (!confirm(`このMacに${local.length}件のデータがあります。\nFirebaseに移行してiPadからも使えるようにしますか？`)) return;
+  showToast('⏳ データを移行中...');
+  for (let i = 0; i < local.length; i += 400) {
+    const batch = db.batch();
+    local.slice(i, i + 400).forEach(c => {
+      const { id, ...data } = c;
+      batch.set(db.collection('customers').doc(id), data);
+    });
+    await batch.commit();
+  }
+  localStorage.removeItem('fm_customers');
+  showToast(`✅ ${local.length}件を移行しました！`);
+}
+
+// ===== Firestore書き込み =====
+async function dbSave(c) {
+  const { id, ...data } = c;
+  try { await db.collection('customers').doc(id).set(data); }
+  catch(e) { showToast('⚠️ 保存に失敗しました'); console.error(e); }
+}
+async function dbDelete(id) {
+  try { await db.collection('customers').doc(id).delete(); }
+  catch(e) { showToast('⚠️ 削除に失敗しました'); console.error(e); }
+}
+
+// ===== アバター =====
+function avatarHtml(c, cls) {
+  const initial = (c.name||'?').charAt(0);
+  if (c.photoUrl) {
+    const safeUrl = escHtml(c.photoUrl);
+    const safeInit = escHtml(initial);
+    return `<div class="${cls} has-photo">
+      <img src="${safeUrl}" alt="${safeInit}"
+        onerror="var p=this.parentElement;p.classList.remove('has-photo');p.style.background='var(--green-mid)';p.innerHTML='${safeInit}'">
+    </div>`;
+  }
+  return `<div class="${cls}">${initial}</div>`;
+}
+function generateId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function getCustomer(id) { return customers.find(c => c.id === id); }
+function setVal(id, val) { const el = document.getElementById(id); if (el) el.value = val ?? ''; }
+function getVal(id) { const el = document.getElementById(id); return el ? el.value : ''; }
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function formatDate(d) {
+  if (!d) return '';
+  const dt = new Date(d + 'T00:00:00');
+  return `${dt.getFullYear()}/${String(dt.getMonth()+1).padStart(2,'0')}/${String(dt.getDate()).padStart(2,'0')}`;
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ===== サイドバー =====
+function renderCustomerList() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const filtered = customers.filter(c =>
+    c.name.toLowerCase().includes(q) ||
+    (c.kana||'').toLowerCase().includes(q) ||
+    (c.libeName||'').toLowerCase().includes(q) ||
+    (c.profileUrl||'').toLowerCase().includes(q)
+  );
+  // 商品フィルター
+  const productFilter = (document.getElementById('productFilter')||{}).value || 'all';
+  // 発送予定日フィルター
+  const shipDateFilter = (document.getElementById('shipDateFilter')||{}).value || '';
+  const filteredByShip = !shipDateFilter ? filtered : filtered.filter(c =>
+    (c.history||[]).some(h => h.shipDate === shipDateFilter)
+  );
+
+  const filteredByProduct = productFilter === 'all' ? filteredByShip : filteredByShip.filter(c => {
+    const hist = (c.history || []).filter(h => h.product);
+    if (!hist.length) return false;
+    // 直近の注文の商品で判定
+    const latest = hist.slice().sort((x, y) => y.date.localeCompare(x.date))[0];
+    if (productFilter === 'single') return latest.product.includes('シングルオリジン');
+    if (productFilter === 'drip')   return latest.product.includes('ドリップバッグ');
+    return true;
+  });
+  const isFiltered = q || productFilter !== 'all' || shipDateFilter;
+  document.getElementById('customerCount').textContent =
+    `全 ${customers.length} 名${isFiltered ? `（${filteredByProduct.length} 件）` : ''}`;
+
+  const list = document.getElementById('customerList');
+  if (!filteredByProduct.length) {
+    list.innerHTML = `<div style="padding:24px;text-align:center;color:#aaa;font-size:0.85rem">${customers.length===0?'顧客を追加してください':'該当なし'}</div>`;
+    return;
+  }
+  const sortKey = (document.getElementById('sortSelect')||{}).value || 'orderDate';
+  const sorted = filteredByProduct.slice().sort((a, b) => {
+    if (sortKey === 'orderDate') {
+      const aV = (a.history||[]).length ? a.history.slice().sort((x,y)=>y.date.localeCompare(x.date))[0].date : '';
+      const bV = (b.history||[]).length ? b.history.slice().sort((x,y)=>y.date.localeCompare(x.date))[0].date : '';
+      if (!aV && !bV) return 0; if (!aV) return 1; if (!bV) return -1;
+      return bV.localeCompare(aV);
+    }
+    if (sortKey === 'roastDate') {
+      const aV = (a.history||[]).map(h=>h.roastDate||'').filter(Boolean).sort().reverse()[0] || '';
+      const bV = (b.history||[]).map(h=>h.roastDate||'').filter(Boolean).sort().reverse()[0] || '';
+      if (!aV && !bV) return 0; if (!aV) return 1; if (!bV) return -1;
+      return bV.localeCompare(aV);
+    }
+    if (sortKey === 'count') {
+      return (b.history||[]).length - (a.history||[]).length;
+    }
+    if (sortKey === 'name') {
+      return (a.libeName||a.name||'').localeCompare(b.libeName||b.name||'', 'ja');
+    }
+    return 0;
+  });
+  list.innerHTML = sorted.map(c => {
+    const cnt = (c.history||[]).length;
+    const last = cnt ? c.history.slice().sort((a,b)=>b.date.localeCompare(a.date))[0].date : null;
+    return `
+      <div class="customer-item ${c.id===selectedCustomerId?'active':''}" onclick="selectCustomer('${c.id}')">
+        ${avatarHtml(c, 'customer-avatar')}
+        <div class="customer-item-info">
+          <div class="customer-item-name">${c.libeName?`🌿 ${escHtml(c.libeName)} <span style="font-size:0.72rem;color:#aaa;font-weight:400">(${escHtml(c.name)})</span>`:escHtml(c.name)}</div>
+          <div class="customer-item-sub">${last ? '最終: '+formatDate(last) : 'まだ記録なし'}</div>
+        </div>
+        ${cnt ? `<span class="customer-badge">${cnt}回</span>` : ''}
+      </div>`;
+  }).join('');
+}
+
+// ===== 詳細 =====
+function selectCustomer(id) {
+  selectedCustomerId = id;
+  renderCustomerList();
+  renderDetail();
+}
+
+function renderDetail() {
+  const c = getCustomer(selectedCustomerId);
+  if (!c) return;
+  const history = (c.history||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
+
+  document.getElementById('main').innerHTML = `
+    <div class="customer-detail">
+      <div class="detail-header">
+        ${avatarHtml(c, 'detail-avatar')}
+        <div class="detail-info">
+          <div class="detail-name">
+            ${c.libeName
+              ? `<span style="font-size:1.5rem;color:var(--green);font-weight:800">🌿 ${escHtml(c.libeName)}</span><br><span style="font-size:0.82rem;color:#aaa;font-weight:400">${escHtml(c.name)}</span>`
+              : escHtml(c.name)}
+          </div>
+          <div class="detail-meta">
+            ${c.profileUrl?`<span><a href="${escHtml(c.profileUrl)}" target="_blank" rel="noopener" style="color:#4a90d9;text-decoration:none">🔗 プロフィール</a></span>`:''}
+          </div>
+        </div>
+        <div class="detail-actions">
+          <button class="btn btn-secondary" onclick="openCustomerModal('${c.id}')">✏️ 編集</button>
+          <button class="btn btn-danger" onclick="deleteCustomer('${c.id}')">🗑</button>
+        </div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-card"><div class="val">${history.length}</div><div class="lbl">購入回数</div></div>
+        <div class="stat-card"><div class="val">${history.length?formatDate(history[0].date):'-'}</div><div class="lbl">最終注文日</div></div>
+      </div>
+
+      ${c.memo?`
+      <div class="info-card">
+        <h3>📮 メッセージカードの内容（定番・メモ）</h3>
+        <p>${escHtml(c.memo)}</p>
+      </div>`:''}
+
+      <div class="section-header">
+        <div class="section-title">☕ 発送履歴</div>
+        <button class="btn btn-brown" onclick="openHistoryModal()">＋ 発送を記録</button>
+      </div>
+
+      <div class="history-list">
+        ${!history.length ? `
+          <div class="empty-history">
+            <div style="font-size:2.5rem;margin-bottom:8px">📦</div>
+            <p>まだ記録がありません</p>
+            <button class="btn btn-brown" style="margin-top:12px" onclick="openHistoryModal()">最初の記録を追加</button>
+          </div>
+        ` : history.map(h => `
+          <div class="history-card">
+            <div class="history-top">
+              <div class="history-top-row1">
+                <span class="history-date-badge">📅 注文 ${formatDate(h.date)}</span>
+                ${h.shipDate?`<span class="history-date-badge" style="background:#fce4ec;color:#c62828">🚚 発送 ${formatDate(h.shipDate)}</span>`:''}
+                ${h.roastDate?`<span class="history-date-badge" style="background:#fff8e1;color:#e65100">🔥 焙煎 ${formatDate(h.roastDate)}</span>`:''}
+              </div>
+              <div class="history-top-row2">
+                <span class="history-product">🛍 ${escHtml(h.product)}</span>
+                ${h.amount?`<span class="history-amount">¥${parseInt(h.amount).toLocaleString()}</span>`:''}
+                <div class="history-actions">
+                  <button class="btn-icon" onclick="openHistoryModal('${h.id}')">✏️</button>
+                  <button class="btn-icon del" onclick="deleteHistory('${h.id}')">🗑</button>
+                </div>
+              </div>
+            </div>
+
+            ${(h.bean1||h.bean2||h.bean3||h.bean4||h.bonusBean)?`
+            <div class="bean-grid">
+              ${h.bean1?`
+              <div class="bean-item">
+                <div class="bean-label">☕ 銘柄１</div>
+                <div class="bean-name">${escHtml(h.bean1)}</div>
+                ${h.beanGrind?`<span class="bean-type">${escHtml(h.beanGrind)}</span>`:''}
+                ${h.bean1Note?`<div style="font-size:0.75rem;color:#888;margin-top:3px">${escHtml(h.bean1Note)}</div>`:''}
+              </div>`:''}
+              ${h.bean2?`
+              <div class="bean-item">
+                <div class="bean-label">☕ 銘柄２</div>
+                <div class="bean-name">${escHtml(h.bean2)}</div>
+                ${h.beanGrind?`<span class="bean-type">${escHtml(h.beanGrind)}</span>`:''}
+                ${h.bean2Note?`<div style="font-size:0.75rem;color:#888;margin-top:3px">${escHtml(h.bean2Note)}</div>`:''}
+              </div>`:''}
+              ${h.bean3?`
+              <div class="bean-item">
+                <div class="bean-label">☕ 銘柄３（2個目）</div>
+                <div class="bean-name">${escHtml(h.bean3)}</div>
+                ${h.beanGrind?`<span class="bean-type">${escHtml(h.beanGrind)}</span>`:''}
+                ${h.bean3Note?`<div style="font-size:0.75rem;color:#888;margin-top:3px">${escHtml(h.bean3Note)}</div>`:''}
+              </div>`:''}
+              ${h.bean4?`
+              <div class="bean-item">
+                <div class="bean-label">☕ 銘柄４（2個目）</div>
+                <div class="bean-name">${escHtml(h.bean4)}</div>
+                ${h.beanGrind?`<span class="bean-type">${escHtml(h.beanGrind)}</span>`:''}
+                ${h.bean4Note?`<div style="font-size:0.75rem;color:#888;margin-top:3px">${escHtml(h.bean4Note)}</div>`:''}
+              </div>`:''}
+              ${h.bonusBean?`
+              <div class="bean-item bonus">
+                <div class="bean-label">🎁 おまけ銘柄</div>
+                <div class="bean-name">${escHtml(h.bonusBean)}</div>
+                ${h.bonusBeanNote?`<div style="font-size:0.75rem;color:#888;margin-top:3px">${escHtml(h.bonusBeanNote)}</div>`:''}
+              </div>`:''}
+            </div>`:''}
+
+            ${h.seal?`<div style="font-size:0.85rem;color:#555;margin-bottom:8px">🏷 シール: <strong>${escHtml(h.seal)}</strong></div>`:''}
+
+            ${h.message?`
+            <div class="message-box">
+              <div class="message-label">📮 同封したメッセージカードの内容</div>
+              <div class="message-text">${escHtml(h.message)}</div>
+            </div>`:''}
+
+            ${h.note?`<div style="margin-top:8px;font-size:0.8rem;color:var(--gray)">💬 注文時コメント: ${escHtml(h.note)}</div>`:''}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// ===== 顧客モーダル =====
+function openCustomerModal(id) {
+  editingCustomerId = id || null;
+  document.getElementById('customerModalTitle').textContent = id ? '✏️ 顧客を編集' : '👤 顧客を追加';
+  if (id) {
+    const c = getCustomer(id);
+    setVal('cName', c.name); setVal('cLibeName', c.libeName);
+    setVal('cProfileUrl', c.profileUrl); setVal('cPhotoUrl', c.photoUrl||''); setVal('cMemo', c.memo);
+  } else {
+    ['cName','cLibeName','cProfileUrl','cPhotoUrl','cMemo'].forEach(i=>setVal(i,''));
+  }
+  previewPhoto();
+  document.getElementById('customerModal').classList.add('open');
+  document.getElementById('cName').focus();
+}
+
+async function saveCustomer() {
+  const name = getVal('cName').trim();
+  if (!name) { alert('お名前を入力してください'); return; }
+  const data = {
+    name,
+    libeName: getVal('cLibeName').trim(),
+    profileUrl: getVal('cProfileUrl').trim(),
+    photoUrl: getVal('cPhotoUrl').trim(),
+    memo: getVal('cMemo').trim(),
+  };
+  let toSave;
+  if (editingCustomerId) {
+    Object.assign(getCustomer(editingCustomerId), data);
+    toSave = getCustomer(editingCustomerId);
+    showToast('✅ 顧客情報を更新しました');
+  } else {
+    const newC = { id: generateId(), history: [], ...data };
+    customers.push(newC);
+    selectedCustomerId = newC.id;
+    toSave = newC;
+    showToast('✅ 顧客を追加しました');
+  }
+  await dbSave(toSave);
+  closeModal('customerModal'); renderCustomerList();
+  if (selectedCustomerId) renderDetail();
+}
+
+function previewPhoto() {
+  const url = getVal('cPhotoUrl').trim();
+  const name = getVal('cName').trim();
+  const preview = document.getElementById('photoPreview');
+  if (!preview) return;
+  if (url) {
+    preview.style.background = 'transparent';
+    preview.innerHTML = `<img src="${escHtml(url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"
+      onerror="this.parentElement.style.background='var(--green-mid)';this.parentElement.innerHTML='${escHtml((name||'?').charAt(0))}'">`;
+  } else {
+    preview.style.background = 'var(--green-mid)';
+    preview.innerHTML = escHtml((name||'?').charAt(0));
+  }
+}
+
+async function deleteCustomer(id) {
+  const c = getCustomer(id);
+  if (!confirm(`「${c.name}」を削除しますか？\n（履歴もすべて削除されます）`)) return;
+  customers = customers.filter(x=>x.id!==id);
+  selectedCustomerId = null;
+  await dbDelete(id);
+  renderCustomerList();
+  document.getElementById('main').innerHTML = `<div class="empty-state"><div class="icon">☕</div><p>左から顧客を選んでください</p></div>`;
+  showToast('🗑 削除しました');
+}
+
+// ===== 銘柄プルダウン =====
+const PRESET_BEANS = ['エチオピアN','エチオピアW','ケニアW','ブルンジN'];
+
+function onBeanChange(num) {
+  const sel = document.getElementById(`hBean${num}Sel`).value;
+  const custom = document.getElementById(`hBean${num}Custom`);
+  custom.style.display = sel === 'その他' ? '' : 'none';
+  if (sel !== 'その他') custom.value = '';
+}
+
+function getBeanValue(num) {
+  const sel = getVal(`hBean${num}Sel`);
+  return sel === 'その他' ? getVal(`hBean${num}Custom`).trim() : sel;
+}
+
+function setBeanValue(num, val) {
+  const selEl = document.getElementById(`hBean${num}Sel`);
+  const customEl = document.getElementById(`hBean${num}Custom`);
+  if (!selEl || !customEl) return;
+  if (!val) { selEl.value = ''; customEl.style.display = 'none'; customEl.value = ''; return; }
+  if (PRESET_BEANS.includes(val)) { selEl.value = val; customEl.style.display = 'none'; customEl.value = ''; }
+  else { selEl.value = 'その他'; customEl.style.display = ''; customEl.value = val; }
+}
+
+// ===== 発送日フィルター =====
+function setShipDateToday() {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('shipDateFilter').value = today;
+  renderCustomerList();
+}
+function clearShipDateFilter() {
+  document.getElementById('shipDateFilter').value = '';
+  renderCustomerList();
+}
+
+// ===== 2個目セクション トグル =====
+function toggle2ndSet() {
+  const sec = document.getElementById('sec2ndSet');
+  const btn = document.getElementById('btn2ndSet');
+  const isOpen = sec.style.display !== 'none';
+  if (isOpen) {
+    sec.style.display = 'none';
+    btn.textContent = '＋ 2個目の銘柄を追加';
+    setBeanValue('3',''); setBeanValue('4','');
+    setVal('hBean3Note',''); setVal('hBean4Note','');
+  } else {
+    sec.style.display = '';
+    btn.textContent = '－ 2個目を閉じる';
+  }
+}
+
+// ===== 商品選択による動的表示 =====
+function onProductChange() {
+  const p = document.getElementById('hProduct').value;
+  const isSingle = p.includes('シングルオリジン');
+  const hasProduct = p !== '';
+  document.getElementById('secSingle').style.display = isSingle ? '' : 'none';
+  document.getElementById('secCommon').style.display = hasProduct ? '' : 'none';
+}
+
+// ===== 発送記録モーダル =====
+function openHistoryModal(historyId) {
+  editingHistoryId = historyId || null;
+  document.getElementById('historyModalTitle').textContent = historyId ? '✏️ 発送記録を編集' : '📦 発送記録を追加';
+  if (historyId) {
+    const h = getCustomer(selectedCustomerId).history.find(x=>x.id===historyId);
+    setVal('hDate', h.date); setVal('hShipDate', h.shipDate); setVal('hRoastDate', h.roastDate);
+    setVal('hAmount', h.amount); setVal('hProduct', h.product); setVal('hBeanGrind', h.beanGrind);
+    setBeanValue('1', h.bean1||''); setVal('hBean1Note', h.bean1Note);
+    setBeanValue('2', h.bean2||''); setVal('hBean2Note', h.bean2Note);
+    setBeanValue('3', h.bean3||''); setVal('hBean3Note', h.bean3Note||'');
+    setBeanValue('4', h.bean4||''); setVal('hBean4Note', h.bean4Note||'');
+    setBeanValue('Bonus', h.bonusBean||''); setVal('hBonusBeanNote', h.bonusBeanNote);
+    setVal('hSeal', h.seal); setVal('hMessage', h.message); setVal('hNote', h.note);
+    // 2個目セクションの表示制御
+    const has2nd = !!(h.bean3 || h.bean4);
+    document.getElementById('sec2ndSet').style.display = has2nd ? '' : 'none';
+    document.getElementById('btn2ndSet').textContent = has2nd ? '－ 2個目を閉じる' : '＋ 2個目の銘柄を追加';
+  } else {
+    setVal('hDate', new Date().toISOString().split('T')[0]);
+    ['hShipDate','hRoastDate','hAmount','hBeanGrind','hBean1Note','hBean2Note','hBean3Note','hBean4Note','hBonusBeanNote','hSeal','hMessage','hNote']
+      .forEach(i=>setVal(i,''));
+    setBeanValue('1',''); setBeanValue('2',''); setBeanValue('3',''); setBeanValue('4',''); setBeanValue('Bonus','');
+    document.getElementById('sec2ndSet').style.display = 'none';
+    document.getElementById('btn2ndSet').textContent = '＋ 2個目の銘柄を追加';
+    setVal('hProduct', '');
+  }
+  onProductChange();
+  document.getElementById('historyModal').classList.add('open');
+  document.getElementById('hProduct').focus();
+}
+
+async function saveHistory() {
+  const date = getVal('hDate');
+  const product = getVal('hProduct');
+  if (!date) { alert('注文日を入力してください'); return; }
+  if (!product) { alert('商品名を選択してください'); return; }
+  const isSingle = product.includes('シングルオリジン');
+  const data = {
+    date,
+    shipDate: getVal('hShipDate'),
+    roastDate: getVal('hRoastDate'),
+    amount: getVal('hAmount'),
+    product,
+    beanGrind: isSingle ? getVal('hBeanGrind') : '',
+    bean1: isSingle ? getBeanValue('1') : '',
+    bean1Note: isSingle ? getVal('hBean1Note').trim() : '',
+    bean2: isSingle ? getBeanValue('2') : '',
+    bean2Note: isSingle ? getVal('hBean2Note').trim() : '',
+    bean3: isSingle ? getBeanValue('3') : '',
+    bean3Note: isSingle ? getVal('hBean3Note').trim() : '',
+    bean4: isSingle ? getBeanValue('4') : '',
+    bean4Note: isSingle ? getVal('hBean4Note').trim() : '',
+    bonusBean: isSingle ? getBeanValue('Bonus') : '',
+    bonusBeanNote: isSingle ? getVal('hBonusBeanNote').trim() : '',
+    seal: getVal('hSeal').trim(),
+    message: getVal('hMessage').trim(),
+    note: getVal('hNote').trim(),
+  };
+  const c = getCustomer(selectedCustomerId);
+  if (editingHistoryId) {
+    Object.assign(c.history.find(x=>x.id===editingHistoryId), data);
+    showToast('✅ 記録を更新しました');
+  } else {
+    c.history.push({ id: generateId(), ...data });
+    showToast('📦 発送を記録しました');
+  }
+  await dbSave(c);
+  closeModal('historyModal'); renderDetail();
+}
+
+async function deleteHistory(historyId) {
+  if (!confirm('この記録を削除しますか？')) return;
+  const c = getCustomer(selectedCustomerId);
+  c.history = c.history.filter(h=>h.id!==historyId);
+  await dbSave(c);
+  renderDetail();
+  showToast('🗑 記録を削除しました');
+}
+
+// ===== モーダル制御 =====
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(el=>{
+  el.addEventListener('click', e=>{ if(e.target===el) el.classList.remove('open'); });
+});
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape') document.querySelectorAll('.modal-overlay.open').forEach(el=>el.classList.remove('open'));
+});
+
+// Firebase接続前の初期表示
+document.getElementById('customerCount').textContent = '接続中...';
+</script>
+</body>
+</html>
