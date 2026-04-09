@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ファーマーズマーケット 顧客管理</title>
+<title>リベシティ市場 CRM</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -24,6 +24,20 @@
   header { background: var(--green); color: white; padding: 14px 20px; display: flex; align-items: center; gap: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); flex-shrink: 0; }
   header h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: 0.05em; }
   header .subtitle { font-size: 0.75rem; opacity: 0.8; margin-top: 2px; }
+  .tab-btn { background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 20px; padding: 6px 14px; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .tab-btn:hover { background: rgba(255,255,255,0.25); }
+  .tab-btn.active { background: white; color: var(--green); border-color: white; }
+
+  /* 発送管理 */
+  .ship-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  .ship-table th { background: var(--green-light); color: var(--green); font-size: 0.78rem; font-weight: 700; padding: 10px 14px; text-align: left; border-bottom: 2px solid var(--green-mid); white-space: nowrap; }
+  .ship-table td { padding: 12px 14px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+  .ship-table tr:hover td { background: var(--green-light); cursor: pointer; }
+  .ship-table tr.today td { background: #fff8e1; }
+  .ship-badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 0.75rem; font-weight: 700; }
+  .ship-badge.today { background: #fff3e0; color: #e65100; }
+  .ship-badge.soon { background: #e8f5e9; color: var(--green); }
+  .ship-badge.future { background: #f5f5f5; color: #888; }
 
   /* レイアウト */
   .layout { display: flex; flex: 1; overflow: hidden; }
@@ -143,6 +157,10 @@
   .customer-avatar.has-photo img,
   .detail-avatar.has-photo img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
 
+  /* 発送一覧用ミニアバター */
+  .ship-avatar { width: 22px; height: 22px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: var(--green-light); display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--green-mid); }
+  .ship-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
   /* スクロールバー */
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
@@ -172,29 +190,37 @@
 <div id="lockScreen">
   <div class="lock-box">
     <div class="lock-icon">☕🔒</div>
-    <div class="lock-title">ファーマーズマーケット CRM</div>
-    <div class="lock-sub">パスワードを入力してください</div>
-    <input type="password" id="lockPassword" class="lock-input" placeholder="パスワード"
+    <div class="lock-title">リベシティ市場 CRM</div>
+    <div class="lock-sub">メールアドレスとパスワードでログイン</div>
+    <input type="email" id="lockEmail" class="lock-input" placeholder="メールアドレス" autocomplete="username"
+      style="text-align:left;letter-spacing:normal;margin-bottom:10px"
+      onkeydown="if(event.key==='Enter')document.getElementById('lockPassword').focus()">
+    <input type="password" id="lockPassword" class="lock-input" placeholder="パスワード" autocomplete="current-password"
+      style="text-align:left;letter-spacing:normal"
       onkeydown="if(event.key==='Enter')unlockApp()">
-    <button class="lock-btn" onclick="unlockApp()">ログイン</button>
-    <div class="lock-error" id="lockError">パスワードが違います</div>
+    <button class="lock-btn" id="lockBtn" onclick="unlockApp()">ログイン</button>
+    <div class="lock-error" id="lockError">ログインに失敗しました</div>
   </div>
 </div>
 
 <header>
   <div style="font-size:1.8rem">☕</div>
-  <div>
-    <h1>ファーマーズマーケット 顧客管理</h1>
+  <div style="flex:1">
+    <h1>リベシティ市場 CRM</h1>
     <div class="subtitle">お客様の豆・メッセージカード記録</div>
   </div>
+  <button class="tab-btn active" id="tabCRM" onclick="switchTab('crm')">👤 顧客管理</button>
+  <button class="tab-btn" id="tabShip" onclick="switchTab('ship')">🚚 発送管理</button>
+  <button class="tab-btn" id="btnLogout" onclick="logoutApp()" title="ログアウト"
+    style="background:none;border:1px solid var(--border);color:#888">↪ ログアウト</button>
 </header>
 
 <div class="layout">
   <aside class="sidebar">
     <div class="sidebar-header">
       <input type="text" id="searchInput" placeholder="顧客を検索..." oninput="renderCustomerList()">
-      <button onclick="toggleRealName()" id="btnEye" title="本名の表示/非表示"
-        style="background:none;border:1px solid var(--border);border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#aaa">👁</button>
+      <button onclick="toggleRealName()" id="btnEye" title="本名を表示する"
+        style="background:white;border:1px solid var(--border);border-radius:50%;width:32px;height:32px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#aaa;padding:0"></button>
       <button class="btn-add-customer" onclick="openCustomerModal()" title="顧客を追加">＋</button>
     </div>
     <div style="padding:4px 10px;border-bottom:1px solid var(--border);background:#fafafa;display:flex;align-items:center;gap:6px">
@@ -436,34 +462,10 @@
 <div class="toast" id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/encoding-japanese@2.2.0/encoding.min.js"></script>
 <script>
-// ===== パスワード認証 =====
-const PW_HASH = '290f95db4ac6331934c447c3fa08b97e40c27d930901dc9a054d142393080230';
-async function sha256(s) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
-async function unlockApp() {
-  const pw = document.getElementById('lockPassword').value;
-  const hash = await sha256(pw);
-  if (hash === PW_HASH) {
-    sessionStorage.setItem('fm_auth', '1');
-    document.getElementById('lockScreen').classList.add('hidden');
-    document.getElementById('lockPassword').value = '';
-  } else {
-    document.getElementById('lockError').style.display = '';
-    document.getElementById('lockPassword').value = '';
-    document.getElementById('lockPassword').focus();
-  }
-}
-// 認証チェック
-if (sessionStorage.getItem('fm_auth') !== '1') {
-  document.getElementById('lockPassword').focus();
-} else {
-  document.getElementById('lockScreen').classList.add('hidden');
-}
-
 // ===== Firebase設定 =====
 const firebaseConfig = {
   apiKey: "AIzaSyBMpHcVSPRZ4-ch7Pmim7H98lR7k2DIwjY",
@@ -475,6 +477,76 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+const auth = firebase.auth();
+// ログイン状態を永続化（ブラウザを閉じても再ログイン不要）
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
+
+// ===== Firebase Authentication によるログイン =====
+let _firestoreListenerStarted = false;
+async function unlockApp() {
+  const email = document.getElementById('lockEmail').value.trim();
+  const pw = document.getElementById('lockPassword').value;
+  const err = document.getElementById('lockError');
+  const btn = document.getElementById('lockBtn');
+  if (!email || !pw) {
+    err.textContent = 'メールアドレスとパスワードを入力してください';
+    err.style.display = 'block';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'ログイン中...';
+  err.style.display = 'none';
+  try {
+    await auth.signInWithEmailAndPassword(email, pw);
+    // 成功後は onAuthStateChanged が後処理を担当
+  } catch (e) {
+    console.error(e);
+    const code = e && e.code || '';
+    let msg = 'ログインに失敗しました';
+    if (code === 'auth/invalid-email') msg = 'メールアドレスの形式が正しくありません';
+    else if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential' || code === 'auth/invalid-login-credentials') msg = 'メールアドレスまたはパスワードが違います';
+    else if (code === 'auth/too-many-requests') msg = '試行回数が多すぎます。しばらくしてから再試行してください';
+    else if (code === 'auth/network-request-failed') msg = 'ネットワークエラーが発生しました';
+    err.textContent = msg;
+    err.style.display = 'block';
+    document.getElementById('lockPassword').value = '';
+    document.getElementById('lockPassword').focus();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'ログイン';
+  }
+}
+async function logoutApp() {
+  if (!confirm('ログアウトしますか？')) return;
+  try {
+    await auth.signOut();
+    location.reload();
+  } catch (e) {
+    showToast('⚠️ ログアウトに失敗しました');
+    console.error(e);
+  }
+}
+// ログイン状態を監視
+auth.onAuthStateChanged(user => {
+  const lock = document.getElementById('lockScreen');
+  if (user) {
+    // ログイン済み
+    lock.classList.add('hidden');
+    document.getElementById('lockPassword').value = '';
+    if (!_firestoreListenerStarted) {
+      _firestoreListenerStarted = true;
+      startFirestoreListener();
+    }
+  } else {
+    // 未ログイン
+    lock.classList.remove('hidden');
+    setTimeout(()=>{
+      const emailEl = document.getElementById('lockEmail');
+      if (emailEl && !emailEl.value) emailEl.focus();
+      else document.getElementById('lockPassword').focus();
+    }, 50);
+  }
+});
 
 let customers = [];
 let selectedCustomerId = null;
@@ -483,31 +555,629 @@ let editingHistoryId = null;
 let _firstLoad = true;
 let showRealName = false;
 
+// ===== ローカル日付（JST）を YYYY-MM-DD で取得 =====
+// toISOString() は UTC を返すため、日本時間の早朝だと前日になってしまう
+function todayLocal() {
+  const d = new Date();
+  return d.getFullYear() + '-' +
+         String(d.getMonth() + 1).padStart(2, '0') + '-' +
+         String(d.getDate()).padStart(2, '0');
+}
+
+// ===== リベネーム用のリーフアイコン（インラインSVG） =====
+function leafIcon(size) {
+  const s = size || 14;
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="#4a8a4c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;flex-shrink:0"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19.2 2.96c1.4 2.73 1.4 6.79 0 9.9-1.4 3.1-4.2 5.14-8.2 7.14"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg>';
+}
+
+// ===== 本名表示切替用のアイコン（シンプルな線画） =====
+// on  = 本名表示中（目が開いた状態）
+// off = 本名非表示（目に斜線）
+function eyeIconHtml(on) {
+  if (on) {
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+  }
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+}
+
+// ===== タブ切替 =====
+let currentTab = 'crm';
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tabCRM').classList.toggle('active', tab === 'crm');
+  document.getElementById('tabShip').classList.toggle('active', tab === 'ship');
+  document.querySelector('.sidebar').style.display = tab === 'crm' ? '' : 'none';
+  if (tab === 'ship') renderShipmentList();
+  else { renderCustomerList(); if (selectedCustomerId) renderDetail(); else document.getElementById('main').innerHTML = `<div class="empty-state"><div class="icon">☕</div><p>左から顧客を選んでください</p></div>`; }
+}
+
+// ===== 発送管理 =====
+function renderShipmentList() {
+  const today = todayLocal();
+  const items = [];
+  customers.forEach(c => {
+    (c.history||[]).forEach(h => {
+      if (h.shipDate && h.shipDate >= today) {
+        items.push({ c, h });
+      }
+    });
+  });
+  items.sort((a, b) => a.h.shipDate.localeCompare(b.h.shipDate));
+
+  const main = document.getElementById('main');
+  if (!items.length) {
+    main.innerHTML = `<div class="empty-state"><div class="icon">🚚</div><p>発送予定はありません</p></div>`;
+    return;
+  }
+
+  const rows = items.map(({ c, h }) => {
+    const diff = Math.round((new Date(h.shipDate) - new Date(today)) / 86400000);
+    const badgeCls = diff === 0 ? 'today' : diff <= 3 ? 'soon' : 'future';
+    const badgeText = diff === 0 ? '今日' : diff === 1 ? '明日' : `${diff}日後`;
+    // 発送一覧の名前セル: リベネームの左に顧客のプロフィール画像（photoUrl）を表示。
+    // 画像が無ければリーフアイコンにフォールバック。
+    const initial = escHtml((c.name||'?').charAt(0));
+    const avatar = c.photoUrl
+      ? `<span class="ship-avatar"><img src="${escHtml(c.photoUrl)}" alt="${initial}" onerror="var p=this.parentElement;p.innerHTML='${initial}';p.style.fontSize='0.7rem';p.style.color='var(--green)';p.style.fontWeight='700'"></span>`
+      : `<span class="ship-avatar">${leafIcon(14)}</span>`;
+    const name = c.libeName
+      ? `<span style="display:inline-flex;align-items:center;gap:6px">${avatar}<span>${escHtml(c.libeName)}</span></span><br><span style="font-size:0.75rem;color:#aaa;margin-left:28px">${maskedName(c)}</span>`
+      : `<span style="display:inline-flex;align-items:center;gap:6px">${avatar}<span>${maskedName(c)}</span></span>`;
+    const roast = h.roastDate ? `🔥 ${formatDate(h.roastDate)}` : '<span style="color:#ccc">—</span>';
+    const grind = h.beanGrind ? `<span style="font-size:0.72rem;background:#f0f0f0;border-radius:6px;padding:1px 6px;color:#555">${escHtml(h.beanGrind)}</span>` : '';
+    const beans = [h.bean1, h.bean2, h.bean3, h.bean4].filter(Boolean);
+    const beanColor = b => b.includes('W') ? '#1565c0' : b.includes('N') ? '#e65100' : 'var(--brown)';
+    const beanHtml = beans.length
+      ? beans.map(b => `<div style="font-size:0.82rem;color:${beanColor(b)};font-weight:600">☕ ${escHtml(b)}</div>`).join('')
+      : '<span style="color:#ccc">—</span>';
+    const bonusHtml = h.bonusBean
+      ? `<div style="font-size:0.82rem;color:var(--brown)">🎁 ${escHtml(h.bonusBean)}</div>${h.bonusBeanNote ? `<div style="font-size:0.75rem;color:#aaa;margin-top:2px">${escHtml(h.bonusBeanNote)}</div>` : ''}`
+      : '<span style="color:#ccc">—</span>';
+    return `<tr class="${diff===0?'today':''}" onclick="switchTab('crm');selectCustomer('${c.id}')">
+      <td><span class="ship-badge ${badgeCls}">${badgeText}</span><br><span style="font-size:0.82rem;color:#555">${formatDate(h.shipDate)}</span></td>
+      <td>${name}</td>
+      <td><div style="color:var(--brown);font-weight:600;margin-bottom:4px">${escHtml(h.product)}</div>${grind}</td>
+      <td>${beanHtml}</td>
+      <td>${bonusHtml}</td>
+      <td style="font-size:0.82rem;color:#666">${roast}</td>
+    </tr>`;
+  }).join('');
+
+  main.innerHTML = `
+    <div style="padding:24px;max-width:960px">
+
+      <!-- クリックポストCSV作成 -->
+      <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:20px;border-left:4px solid #4a90d9">
+        <div style="font-size:0.95rem;font-weight:700;color:#4a90d9;margin-bottom:10px">📮 クリックポスト用CSV作成</div>
+        <div style="font-size:0.82rem;color:var(--gray);margin-bottom:12px">リベシティ市場のCSVをアップロードすると、クリックポスト用CSVを生成します。住所はこのアプリに保存されません。</div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:8px;background:var(--green-light);border:1px solid var(--green-mid);border-radius:8px;padding:8px 14px;cursor:pointer;font-size:0.85rem;color:var(--green);font-weight:600">
+            📂 CSVを選択
+            <input type="file" accept=".csv" onchange="generateClickpostCSV(this)" style="display:none">
+          </label>
+          <span id="clickpostStatus" style="font-size:0.82rem;color:var(--gray)">ファイルを選択してください</span>
+        </div>
+        <div id="clickpostSelection"></div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <div style="font-size:1rem;font-weight:700;color:var(--brown)">🚚 発送予定一覧（${items.length}件）</div>
+        <button onclick="toggleRealName();renderShipmentList()" id="btnEyeShip"
+          style="background:white;border:1px solid ${showRealName?'var(--green-mid)':'var(--border)'};border-radius:50%;width:30px;height:30px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:${showRealName?'var(--green)':'#aaa'};padding:0"
+          title="${showRealName?'本名を非表示にする':'本名を表示する'}">${eyeIconHtml(showRealName)}</button>
+      </div>
+      <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden">
+        <table class="ship-table">
+          <thead><tr>
+            <th>発送予定日</th>
+            <th>お名前</th>
+            <th>商品・挽き方</th>
+            <th>銘柄</th>
+            <th>おまけ</th>
+            <th>焙煎日</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+// ===== クリックポストCSV生成 =====
+let _clickpostData = [];
+
+// ===== 住所を行に分割 =====
+// ClickPost制限: 1行あたり全角20文字 または 半角40文字
+// 半角英数記号=1、全角=2 として幅を計算し、なるべく自然な境界で改行
+function splitJapaneseAddress(addr) {
+  // 全角数字→半角、各種ハイフン→半角ハイフン、全角スペース→半角スペース
+  // （長音記号 ー はそのまま保持）
+  addr = addr.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+             .replace(/[－−‐]/g, '-')
+             .replace(/　/g, ' ')
+             .trim();
+
+  const MAX = 40;   // 半角幅ベース上限（= 全角20文字相当）
+  const H = '[-ー]'; // ハイフン類（長音記号ーも番地の区切りとして許容）
+
+  // 文字列の表示幅（半角=1、全角=2）
+  const widthOf = s => {
+    let w = 0;
+    for (const c of s) {
+      const cp = c.codePointAt(0);
+      if (cp <= 0x7E) w += 1;                           // ASCII
+      else if (cp >= 0xFF61 && cp <= 0xFF9F) w += 1;    // 半角カナ
+      else w += 2;                                      // 全角
+    }
+    return w;
+  };
+
+  // 末尾のマンション名+部屋番号を分離
+  const splitRoom = s => {
+    const m = s.match(/^(.+?)[\s,，、]*([0-9]+(?:号室|号|F|階)?)\s*$/);
+    if (m && m[1].trim() && /[ァ-ヴー一-龥a-zA-Z]/.test(m[1])) {
+      return [m[1].replace(/[\s,，、]+$/, '').trim(), m[2].trim()];
+    }
+    return [s, ''];
+  };
+
+  // 自然な境界（空白・カンマ）で maxW 以内の位置を探して2分割。
+  // 境界が見つからなければ width で切る。
+  const splitAtBoundary = (s, maxW) => {
+    const chars = [...s];
+    let bestCut = -1;
+    let hardCut = 0;
+    let w = 0;
+    for (let i = 0; i < chars.length; i++) {
+      const cw = widthOf(chars[i]);
+      if (w + cw > maxW) break;
+      w += cw;
+      hardCut = i + 1;
+      if (/[\s,，、]/.test(chars[i])) bestCut = i + 1;
+    }
+    const cut = bestCut > 0 ? bestCut : hardCut;
+    return [
+      s.slice(0, cut).replace(/[\s,，、]+$/, '').trim(),
+      s.slice(cut).replace(/^[\s,，、]+/, '').trim()
+    ];
+  };
+
+  // パターンA: スペース区切り最優先
+  //  ※ 2行に収まるならそれを最優先。3行目はあふれた時の保険。
+  const spaceRe = new RegExp(`^(.*?[0-9]+(?:${H}[0-9]+)*(?:丁目|番地?|号)?)\\s+(.+)$`);
+  const spaceMatch = addr.match(spaceRe);
+  if (spaceMatch && widthOf(spaceMatch[1]) <= MAX) {
+    const street = spaceMatch[1];
+    const rest = spaceMatch[2];
+    if (widthOf(rest) <= MAX) return [street, rest, '', ''];              // 2行で収まる
+    const [mansion, room] = splitRoom(rest);
+    if (room && widthOf(mansion) <= MAX) return [street, mansion, room, '']; // 3行に分離
+    const [a1, a2] = splitAtBoundary(rest, MAX);
+    return [street, a1, a2, ''];
+  }
+
+  // パターンB: 地名（漢字・かな）→番地（数字）の境界で分割
+  // 例: 「大阪府大阪市中央区上町1-1-26ー805」 → 1行で収まる
+  // 例: 「東京都小金井市本町4-3-19Maison de Lara, Ouest 201」
+  //   → ["東京都小金井市本町4-3-19", "Maison de Lara, Ouest 201"]（2行）
+  const placeNumMatch = addr.match(/^([^\s0-9]+?)([0-9].*)$/);
+  if (placeNumMatch) {
+    const placeName = placeNumMatch[1];
+    const rest = placeNumMatch[2];
+    const blockRe = new RegExp(`^([0-9]+(?:${H}[0-9]+)*(?:丁目|番地?|号)?)(.*)$`);
+    const blockMatch = rest.match(blockRe);
+    if (blockMatch && widthOf(placeName) <= MAX) {
+      const block = blockMatch[1];
+      const after = blockMatch[2].trim();
+      const combined = placeName + block;
+
+      if (!after) {
+        if (widthOf(combined) <= MAX) return [combined, '', '', ''];
+        return [placeName, block, '', ''];
+      }
+
+      if (widthOf(combined) <= MAX) {
+        // 「地名+番地」を1行目にまとめられる
+        if (widthOf(after) <= MAX) return [combined, after, '', '']; // 2行で収まる（最優先）
+        const [mansion, room] = splitRoom(after);
+        if (room && widthOf(mansion) <= MAX) return [combined, mansion, room, ''];
+        const [a1, a2] = splitAtBoundary(after, MAX);
+        return [combined, a1, a2, ''];
+      } else {
+        // 「地名+番地」が長いので 地名/番地 で分割
+        if (widthOf(after) <= MAX) return [placeName, block, after, ''];
+        const [mansion, room] = splitRoom(after);
+        if (room && widthOf(mansion) <= MAX) return [placeName, block, mansion, room];
+        const [a1, a2] = splitAtBoundary(after, MAX);
+        return [placeName, block, a1, a2];
+      }
+    }
+  }
+
+  // パターンC: そのまま MAX 以内 → 1行目だけ
+  if (widthOf(addr) <= MAX) return [addr, '', '', ''];
+
+  // パターンD: 境界ベースで分割
+  const [p1, p2] = splitAtBoundary(addr, MAX);
+  return [p1, p2, '', ''];
+}
+
+// プロフィールURLの正規化（末尾の / や http/https の揺れを吸収）
+function normalizeProfileUrl(u) {
+  if (!u) return '';
+  return String(u).trim()
+    .replace(/^http:\/\//i, 'https://')
+    .replace(/\/+$/, '')
+    .toLowerCase();
+}
+
+// リベシティの注文情報から顧客を検索
+//   プロフィールURL（最も確実・表示名変更の影響を受けない）
+//    → リベネーム → 氏名 の順でフォールバック
+function findCustomerByLibeInfo(profileUrl, libeName, realName) {
+  if (!Array.isArray(customers) || !customers.length) return null;
+  // 1. プロフィールURL（推奨）
+  const targetUrl = normalizeProfileUrl(profileUrl);
+  if (targetUrl) {
+    const match = customers.find(c => normalizeProfileUrl(c.profileUrl) === targetUrl);
+    if (match) return match;
+  }
+  // 2. リベネーム
+  if (libeName) {
+    const ln = libeName.trim();
+    const match = customers.find(c => c.libeName && c.libeName.trim() === ln);
+    if (match) return match;
+  }
+  // 3. 氏名（空白無視）
+  if (realName) {
+    const rn = realName.replace(/\s+/g, '');
+    const match = customers.find(c => c.name && c.name.replace(/\s+/g, '') === rn);
+    if (match) return match;
+  }
+  return null;
+}
+
+// 発送予定一覧（顧客ごとの履歴）から豆/挽き豆の設定を取得
+//   beanGrind が入っている直近の履歴を優先（手入力のため最も正確）。
+function findShippingBeanGrind(profileUrl, libeName, realName) {
+  const customer = findCustomerByLibeInfo(profileUrl, libeName, realName);
+  if (!customer || !Array.isArray(customer.history) || !customer.history.length) {
+    return { grind: null, matchedBy: null, customer: null };
+  }
+  const withGrind = customer.history
+    .filter(h => h.beanGrind === '豆のまま' || h.beanGrind === '挽き豆')
+    .sort((a, b) => (b.shipDate || b.date || '').localeCompare(a.shipDate || a.date || ''));
+  // どのキーで一致したか
+  let matchedBy = null;
+  if (profileUrl && normalizeProfileUrl(customer.profileUrl) === normalizeProfileUrl(profileUrl)) matchedBy = 'url';
+  else if (libeName && customer.libeName && customer.libeName.trim() === libeName.trim()) matchedBy = 'libeName';
+  else matchedBy = 'name';
+  return {
+    grind: withGrind[0] ? withGrind[0].beanGrind : null,
+    matchedBy,
+    customer
+  };
+}
+
+// 内容品を判定
+//   ドリップ系 → 商品タイトルで判定
+//   挽き豆/豆のまま → 「特記事項」のうち、ユーザー回答部分（「→」で始まる行）だけを見る。
+//   リベシティのテンプレート文言には必ず「■挽き豆をご希望の方も…」「豆のままでお届けいたします」が
+//   入っているため、全文に対して「挽き」をキーワード検索すると常に誤判定する。
+function detectContent(product, notes) {
+  const prod = product || '';
+  if (prod.includes('ドリップ')) return 'ドリップバッグコーヒー';
+
+  const text = notes || '';
+  // 「→」(全角/半角/絵文字いずれも) で始まる行 = ユーザーがテンプレに記入した回答
+  const arrowLines = text.match(/[→➡➔][^\n]*/g);
+  const userText = arrowLines && arrowLines.length ? arrowLines.join('\n') : text;
+
+  // 明示的な挽き豆リクエストを検出
+  const mentionsGrind = /挽[きい]/.test(userText);
+  // 否定形（例: 「挽き豆にしないで」「挽かずに」）は除外
+  const negated = /挽[きい][^。\n]{0,15}(しないで|せず|なし|不要|ではなく|じゃなく)/.test(userText);
+
+  if (mentionsGrind && !negated) return 'コーヒー豆（挽き豆）';
+  return 'コーヒー豆';
+}
+
+async function generateClickpostCSV(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const status = document.getElementById('clickpostStatus');
+  status.textContent = '処理中...';
+
+  try {
+    const buffer = await file.arrayBuffer();
+    // 文字コード自動判定:
+    //   1. UTF-8 BOM付き → UTF-8
+    //   2. UTF-8として正常に読めれば → UTF-8（BOMなしUTF-8対応）
+    //   3. どちらでもなければ → Shift-JIS
+    const bytes = new Uint8Array(buffer);
+    let text;
+    if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+      text = new TextDecoder('utf-8').decode(buffer); // UTF-8 BOM付き
+    } else {
+      try {
+        text = new TextDecoder('utf-8', { fatal: true }).decode(buffer); // BOMなしUTF-8
+      } catch (e) {
+        text = new TextDecoder('shift-jis').decode(buffer); // Shift-JIS
+      }
+    }
+    const rows = parseCSVRows(text);
+    if (rows.length < 2) { status.textContent = 'データが見つかりませんでした'; return; }
+
+    _clickpostData = [];
+    for (let i = 1; i < rows.length; i++) {
+      const cols = rows[i];
+      if (cols.length < 10) continue;
+      const libeName = (cols[6]||'').trim();  // 購入者の名前（リベネーム）
+      const profileUrl = (cols[7]||'').trim(); // 購入者のプロフィールURL（マッチングの主キー）
+      const addressRaw = (cols[8]||'').trim();
+      const name = (cols[9]||'').trim();       // 配送先氏名
+      const product = (cols[2]||'').trim();
+      const notes = (cols[11]||'').trim();
+      if (!addressRaw || !name) continue;
+      const zipMatch = addressRaw.match(/〒?(\d{3})-?(\d{4})/);
+      const zip = zipMatch ? zipMatch[1] + zipMatch[2] : '';
+      // リベシティ側でShift-JIS非対応文字（EM DASH等）が"?"に化けているので"-"に戻す
+      const addrFull = addressRaw
+        .replace(/〒?\d{3}-\d{4}\s*/, '')
+        .replace(/\?/g, '-')
+        .trim();
+      const [address1, address2, address3, address4] = splitJapaneseAddress(addrFull);
+
+      // 内容品の決定:
+      //  1. ドリップ商品なら商品名で確定
+      //  2. 発送予定一覧の履歴から beanGrind を引けるならそれを優先（手入力のため最も正確）
+      //     マッチング優先度: プロフィールURL > リベネーム > 氏名
+      //  3. 取れなければ備考テキストから推定
+      let content;
+      let contentSource = 'text';
+      let matchedBy = null;
+      if (product.includes('ドリップ')) {
+        content = 'ドリップバッグコーヒー';
+        contentSource = 'product';
+      } else {
+        const match = findShippingBeanGrind(profileUrl, libeName, name);
+        matchedBy = match.matchedBy;
+        if (match.grind === '挽き豆') {
+          content = 'コーヒー豆（挽き豆）'; contentSource = 'history';
+        } else if (match.grind === '豆のまま') {
+          content = 'コーヒー豆'; contentSource = 'history';
+        } else {
+          content = detectContent(product, notes);
+          contentSource = 'text';
+        }
+      }
+
+      _clickpostData.push({
+        zip, name, libeName, profileUrl, honorific: '様',
+        address1, address2, address3, address4,
+        content, contentSource, matchedBy,
+        selected: true,
+        addrOriginal: addrFull
+      });
+    }
+
+    if (!_clickpostData.length) { status.textContent = '有効なデータが見つかりませんでした'; return; }
+
+    status.textContent = '';
+    input.value = '';
+    renderClickpostSelection();
+  } catch(e) {
+    status.textContent = '⚠️ 読み込みに失敗しました';
+    console.error(e);
+  }
+}
+
+// 数字列だけを抽出（不一致チェック用）
+function _clickpostDigits(s) { return (s||'').replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/[^0-9]/g, ''); }
+
+function renderClickpostSelection() {
+  const container = document.getElementById('clickpostSelection');
+  if (!container) return;
+  const inp = (val, field, i, w) =>
+    `<input type="text" value="${escHtml(val||'')}" oninput="_clickpostData[${i}].${field}=this.value;_clickpostRecheck(${i})"
+      style="width:${w};padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:0.8rem;font-family:inherit">`;
+  const sel = (val, field, i, opts) =>
+    `<select onchange="_clickpostData[${i}].${field}=this.value"
+      style="padding:4px 6px;border:1px solid #ddd;border-radius:4px;font-size:0.8rem;font-family:inherit">
+      ${opts.map(o=>`<option ${val===o?'selected':''}>${o}</option>`).join('')}
+    </select>`;
+  const rows = _clickpostData.map((r, i) => {
+    const origDigits = _clickpostDigits(r.addrOriginal);
+    const splitDigits = _clickpostDigits([r.address1,r.address2,r.address3,r.address4].join(''));
+    const mismatch = origDigits !== splitDigits;
+    const rowBg = mismatch ? 'background:#fff3e0' : '';
+    const badge = mismatch
+      ? `<span title="元の住所と分割結果の数字が一致しません" style="display:inline-block;background:#e65100;color:white;font-size:0.65rem;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:4px">要確認</span>`
+      : `<span title="元の住所と数字が一致しています" style="display:inline-block;color:#2e7d32;font-size:0.8rem;margin-left:4px">✓</span>`;
+    return `
+    <tr data-ci="${i}" style="border-bottom:1px solid #f0f0f0;${rowBg}">
+      <td style="text-align:center;padding:6px 4px;vertical-align:top">
+        <input type="checkbox" ${r.selected?'checked':''} onchange="_clickpostData[${i}].selected=this.checked">
+      </td>
+      <td style="padding:4px;vertical-align:top">${inp(r.zip,'zip',i,'90px')}</td>
+      <td style="padding:4px;vertical-align:top">
+        ${inp(r.name,'name',i,'110px')}
+        ${r.libeName ? `<div style="font-size:0.72rem;color:#4a8a4c;margin-top:3px;word-break:break-all;line-height:1.3">🌿 ${escHtml(r.libeName)}</div>` : ''}
+      </td>
+      <td style="padding:4px;vertical-align:top">${sel(r.honorific||'様','honorific',i,['様','御中'])}</td>
+      <td style="padding:4px;vertical-align:top;max-width:200px">
+        <div style="font-size:0.78rem;color:#555;word-break:break-all;line-height:1.35">${escHtml(r.addrOriginal||'')}</div>
+        <div data-badge style="margin-top:3px">${badge}</div>
+      </td>
+      <td style="padding:4px;vertical-align:top">${inp(r.address1,'address1',i,'170px')}</td>
+      <td style="padding:4px;vertical-align:top">${inp(r.address2||'','address2',i,'150px')}</td>
+      <td style="padding:4px;vertical-align:top">${inp(r.address3||'','address3',i,'120px')}</td>
+      <td style="padding:4px;vertical-align:top">${inp(r.address4||'','address4',i,'100px')}</td>
+      <td style="padding:4px;vertical-align:top">
+        ${sel(r.content,'content',i,['コーヒー豆','コーヒー豆（挽き豆）','ドリップバッグコーヒー'])}
+        ${r.contentSource === 'history' ? `<div style="font-size:0.65rem;color:#4a8a4c;margin-top:2px" title="発送予定一覧の履歴から取得（マッチング: ${r.matchedBy==='url'?'プロフィールURL':r.matchedBy==='libeName'?'リベネーム':'氏名'}）">📋 履歴より${r.matchedBy==='url'?' 🔗':r.matchedBy==='libeName'?' 🌿':''}</div>` : r.contentSource === 'text' ? '<div style="font-size:0.65rem;color:#aaa;margin-top:2px">💬 備考より</div>' : ''}
+      </td>
+    </tr>`;
+  }).join('');
+  const mismatchCount = _clickpostData.filter(r =>
+    _clickpostDigits(r.addrOriginal) !== _clickpostDigits([r.address1,r.address2,r.address3,r.address4].join(''))
+  ).length;
+  const notice = mismatchCount > 0
+    ? `<div style="margin-top:10px;padding:8px 12px;background:#fff3e0;border-left:4px solid #e65100;border-radius:4px;font-size:0.85rem;color:#6d4c00">
+        ⚠️ ${mismatchCount}件の行で元住所と分割結果の数字が一致していません。修正してから出力してください。
+      </div>`
+    : `<div style="margin-top:10px;padding:8px 12px;background:#e8f5e9;border-left:4px solid var(--green);border-radius:4px;font-size:0.85rem;color:#2e5c30">
+        ✅ 全件で元住所と分割結果の数字が一致しています
+      </div>`;
+  container.innerHTML = `
+    <div style="margin-top:14px;border:1px solid var(--border);border-radius:8px;overflow:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:0.82rem;min-width:1100px">
+        <thead><tr style="background:var(--green-light)">
+          <th style="padding:8px 4px;width:36px">
+            <input type="checkbox" checked title="全選択/解除"
+              onchange="document.querySelectorAll('#clickpostSelection tbody input[type=checkbox]').forEach((cb,i)=>{cb.checked=this.checked;_clickpostData[i].selected=this.checked})">
+          </th>
+          <th style="padding:8px;text-align:left;color:var(--green);white-space:nowrap">郵便番号</th>
+          <th style="padding:8px;text-align:left;color:var(--green)">氏名</th>
+          <th style="padding:8px;text-align:left;color:var(--green)">敬称</th>
+          <th style="padding:8px;text-align:left;color:var(--green);white-space:nowrap">元の住所<span style="font-size:0.7rem;color:#aaa">（照合用）</span></th>
+          <th style="padding:8px;text-align:left;color:var(--green);white-space:nowrap">住所1行目<span style="font-size:0.7rem;color:#aaa">（丁目番地）</span></th>
+          <th style="padding:8px;text-align:left;color:var(--green);white-space:nowrap">住所2行目<span style="font-size:0.7rem;color:#aaa">（マンション）</span></th>
+          <th style="padding:8px;text-align:left;color:var(--green);white-space:nowrap">住所3行目<span style="font-size:0.7rem;color:#aaa">（部屋番号）</span></th>
+          <th style="padding:8px;text-align:left;color:var(--green);white-space:nowrap">住所4行目</th>
+          <th style="padding:8px;text-align:left;color:var(--green)">内容品</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    ${notice}
+    <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button onclick="downloadClickpostCSV()"
+        style="background:var(--green);color:white;border:none;border-radius:8px;padding:9px 18px;font-size:0.88rem;font-weight:700;cursor:pointer">
+        📥 クリックポスト用CSVをダウンロード
+      </button>
+      <button onclick="document.getElementById('clickpostSelection').innerHTML='';document.getElementById('clickpostStatus').textContent='ファイルを選択してください'"
+        style="background:white;color:#888;border:1px solid #ddd;border-radius:8px;padding:9px 14px;font-size:0.85rem;cursor:pointer">
+        キャンセル
+      </button>
+      <span style="font-size:0.78rem;color:#aaa">※ 各セルは直接編集できます</span>
+    </div>`;
+}
+
+// 行編集時の不一致チェック・ハイライト更新
+function _clickpostRecheck(i) {
+  const r = _clickpostData[i];
+  if (!r) return;
+  const origDigits = _clickpostDigits(r.addrOriginal);
+  const splitDigits = _clickpostDigits([r.address1,r.address2,r.address3,r.address4].join(''));
+  const mismatch = origDigits !== splitDigits;
+  const tr = document.querySelector(`#clickpostSelection tbody tr[data-ci="${i}"]`);
+  if (tr) {
+    tr.style.background = mismatch ? '#fff3e0' : '';
+    const badgeHost = tr.querySelector('[data-badge]');
+    if (badgeHost) {
+      badgeHost.innerHTML = mismatch
+        ? `<span title="元の住所と分割結果の数字が一致しません" style="display:inline-block;background:#e65100;color:white;font-size:0.65rem;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:4px">要確認</span>`
+        : `<span title="元の住所と数字が一致しています" style="display:inline-block;color:#2e7d32;font-size:0.8rem;margin-left:4px">✓</span>`;
+    }
+  }
+}
+
+function downloadClickpostCSV() {
+  const selected = _clickpostData.filter(r => r.selected);
+  if (!selected.length) { alert('送り先を1件以上選択してください'); return; }
+  // ClickPost公式仕様: Shift-JIS / CRLF / 列順 = 郵便番号, 氏名, 敬称, 住所1-4行目, 内容品
+  const header = 'お届け先郵便番号,お届け先氏名,お届け先敬称,お届け先住所1行目,お届け先住所2行目,お届け先住所3行目,お届け先住所4行目,内容品';
+  // 値はカンマ・ダブルクォート・改行を含む場合のみクォート
+  const q = v => {
+    const s = (v == null) ? '' : String(v);
+    return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const csvRows = selected.map(r => [
+    r.zip || '',
+    q(r.name || ''),
+    r.honorific || '様',
+    q(r.address1 || ''),
+    q(r.address2 || ''),
+    q(r.address3 || ''),
+    q(r.address4 || ''),
+    q(r.content || '')
+  ].join(','));
+  const csvText = header + '\r\n' + csvRows.join('\r\n') + '\r\n';
+
+  // Shift-JIS にエンコード（ClickPostはShift-JIS指定）
+  if (typeof Encoding === 'undefined') {
+    alert('エンコーディングライブラリの読み込みに失敗しました。ページを再読み込みしてください。');
+    return;
+  }
+  const sjisArray = Encoding.convert(csvText, {
+    to: 'SJIS',
+    from: 'UNICODE',
+    type: 'array'
+  });
+  const blob = new Blob([new Uint8Array(sjisArray)], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'clickpost_' + todayLocal() + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  document.getElementById('clickpostStatus').innerHTML = `<span style="color:var(--green);font-weight:600">✅ ${selected.length}件のCSVをダウンロードしました（Shift-JIS）</span>`;
+  document.getElementById('clickpostSelection').innerHTML = '';
+  _clickpostData = [];
+}
+
+function parseCSVRows(text) {
+  const rows = [];
+  let row = [], field = '', inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"' && text[i+1] === '"') { field += '"'; i++; }
+      else if (ch === '"') inQ = false;
+      else field += ch;
+    } else {
+      if (ch === '"') inQ = true;
+      else if (ch === ',') { row.push(field); field = ''; }
+      else if (ch === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (ch !== '\r') field += ch;
+    }
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
 function toggleRealName() {
   showRealName = !showRealName;
+  updateEyeButton();
+  renderCustomerList();
+  if (selectedCustomerId) renderDetail();
+}
+function updateEyeButton() {
   const btn = document.getElementById('btnEye');
   if (btn) {
+    btn.innerHTML = eyeIconHtml(showRealName);
     btn.style.color = showRealName ? 'var(--green)' : '#aaa';
     btn.style.borderColor = showRealName ? 'var(--green-mid)' : 'var(--border)';
     btn.title = showRealName ? '本名を非表示にする' : '本名を表示する';
   }
-  renderCustomerList();
-  if (selectedCustomerId) renderDetail();
 }
 
 function maskedName(c) {
   return showRealName ? escHtml(c.name) : '●●●';
 }
 
-// ===== Firestoreリアルタイム同期 =====
-db.collection('customers').onSnapshot(snapshot => {
-  customers = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-  if (_firstLoad) { _firstLoad = false; _migrateLocalStorage(); }
-  renderCustomerList();
-  if (selectedCustomerId && customers.some(c => c.id === selectedCustomerId)) renderDetail();
-}, () => {
-  document.getElementById('customerCount').textContent = '⚠️ 接続できません（オフライン）';
-});
+// ===== Firestoreリアルタイム同期（ログイン後にのみ開始） =====
+function startFirestoreListener() {
+  db.collection('customers').onSnapshot(snapshot => {
+    customers = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (_firstLoad) { _firstLoad = false; _migrateLocalStorage(); updateEyeButton(); }
+    renderCustomerList();
+    if (selectedCustomerId && customers.some(c => c.id === selectedCustomerId)) renderDetail();
+  }, (err) => {
+    console.error(err);
+    document.getElementById('customerCount').textContent = '⚠️ 接続できません（オフライン）';
+  });
+}
 
 // ===== LocalStorage → Firebase 移行 =====
 async function _migrateLocalStorage() {
@@ -867,7 +1537,7 @@ function setBeanValue(num, val) {
 
 // ===== 発送日フィルター =====
 function setShipDateToday() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayLocal();
   document.getElementById('shipDateFilter').value = today;
   renderCustomerList();
 }
@@ -893,12 +1563,34 @@ function toggle2ndSet() {
 }
 
 // ===== 商品選択による動的表示 =====
+// ===== 商品ごとの既定価格 =====
+// 今後値段が変わる可能性あり。変更時はここを書き換える。
+const PRODUCT_PRICES = {
+  '【２種】シングルオリジン': 2200,
+  '【１種】シングルオリジン': 1300,
+  '【4袋入り】ドリップバッグ': 1200,
+  '【8袋入り】ドリップバッグ': 2000,
+};
+
 function onProductChange() {
   const p = document.getElementById('hProduct').value;
   const isSingle = p.includes('シングルオリジン');
   const hasProduct = p !== '';
   document.getElementById('secSingle').style.display = isSingle ? '' : 'none';
   document.getElementById('secCommon').style.display = hasProduct ? '' : 'none';
+
+  // 金額の自動入力:
+  //   - 空欄 → 既定価格を入れる
+  //   - 既存の金額が他商品の既定価格と一致 → 商品切替と判断して上書き
+  //   - 手入力された任意の金額 → 上書きしない
+  const priceInput = document.getElementById('hAmount');
+  if (priceInput && PRODUCT_PRICES[p] != null) {
+    const current = (priceInput.value || '').trim();
+    const knownPrices = Object.values(PRODUCT_PRICES).map(String);
+    if (current === '' || knownPrices.includes(current)) {
+      priceInput.value = PRODUCT_PRICES[p];
+    }
+  }
 }
 
 // ===== 発送記録モーダル =====
@@ -920,7 +1612,7 @@ function openHistoryModal(historyId) {
     document.getElementById('sec2ndSet').style.display = has2nd ? '' : 'none';
     document.getElementById('btn2ndSet').textContent = has2nd ? '－ 2個目を閉じる' : '＋ 2個目の銘柄を追加';
   } else {
-    setVal('hDate', new Date().toISOString().split('T')[0]);
+    setVal('hDate', todayLocal());
     ['hShipDate','hRoastDate','hAmount','hBeanGrind','hBean1Note','hBean2Note','hBean3Note','hBean4Note','hBonusBeanNote','hSeal','hMessage','hNote']
       .forEach(i=>setVal(i,''));
     setBeanValue('1',''); setBeanValue('2',''); setBeanValue('3',''); setBeanValue('4',''); setBeanValue('Bonus','');
@@ -992,6 +1684,7 @@ document.addEventListener('keydown', e=>{
 
 // Firebase接続前の初期表示
 document.getElementById('customerCount').textContent = '接続中...';
+updateEyeButton();
 </script>
 </body>
 </html>
