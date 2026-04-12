@@ -211,6 +211,8 @@
   </div>
   <button class="tab-btn active" id="tabCRM" onclick="switchTab('crm')">👤 顧客管理</button>
   <button class="tab-btn" id="tabShip" onclick="switchTab('ship')">🚚 発送管理</button>
+  <button class="tab-btn" onclick="exportBackupCSV()" title="顧客データをCSVバックアップ"
+    style="background:none;border:1px solid rgba(255,255,255,0.3);color:white">💾 バックアップ</button>
   <button class="tab-btn" id="btnLogout" onclick="logoutApp()" title="ログアウト"
     style="background:none;border:1px solid var(--border);color:#888">↪ ログアウト</button>
 </header>
@@ -1124,6 +1126,58 @@ function downloadClickpostCSV() {
   document.getElementById('clickpostStatus').innerHTML = `<span style="color:var(--green);font-weight:600">✅ ${selected.length}件のCSVをダウンロードしました（Shift-JIS）</span>`;
   document.getElementById('clickpostSelection').innerHTML = '';
   _clickpostData = [];
+}
+
+// ===== 顧客データ バックアップCSVエクスポート =====
+function exportBackupCSV() {
+  if (!customers.length) { alert('バックアップする顧客データがありません'); return; }
+  const rows = [];
+  // ヘッダー行
+  rows.push([
+    '顧客ID', 'リベネーム', '本名', 'プロフィールURL', '画像URL',
+    '電話番号', '郵便番号', '住所', 'メモ',
+    '豆の種類', '挽き方', '登録日',
+    '履歴ID', '商品名', '挽き方(履歴)', '金額', '注文日', '発送日', '備考'
+  ].join(','));
+  customers.forEach(c => {
+    const hist = (c.history || []).slice().sort((a,b) => (b.date||'').localeCompare(a.date||''));
+    if (hist.length === 0) {
+      // 履歴がない顧客は1行で出力
+      rows.push(csvRow([
+        c.id, c.libeName||'', c.name||'', c.profileUrl||'', c.photoUrl||'',
+        c.phone||'', c.zip||'', c.address||'', c.memo||'',
+        c.beanType||'', c.grind||'', c.createdAt||'',
+        '', '', '', '', '', '', ''
+      ]));
+    } else {
+      // 履歴ごとに1行
+      hist.forEach(h => {
+        rows.push(csvRow([
+          c.id, c.libeName||'', c.name||'', c.profileUrl||'', c.photoUrl||'',
+          c.phone||'', c.zip||'', c.address||'', c.memo||'',
+          c.beanType||'', c.grind||'', c.createdAt||'',
+          h.id||'', h.product||'', h.grind||'', h.amount||'', h.date||'', h.shipDate||'', h.note||''
+        ]));
+      });
+    }
+  });
+  const csvText = rows.join('\r\n') + '\r\n';
+  // UTF-8 BOM付き（ExcelでUTF-8として認識させるため）
+  const bom = '\uFEFF';
+  const blob = new Blob([bom + csvText], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'backup_' + todayLocal() + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('💾 バックアップCSVをダウンロードしました（' + customers.length + '名分）');
+}
+function csvRow(arr) {
+  return arr.map(v => {
+    const s = (v == null) ? '' : String(v);
+    return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }).join(',');
 }
 
 function parseCSVRows(text) {
