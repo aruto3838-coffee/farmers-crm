@@ -126,6 +126,16 @@
   .message-label { font-size: 0.72rem; color: #a0a0a0; margin-bottom: 5px; font-weight: 600; }
   .message-text { font-size: 0.88rem; color: #555; line-height: 1.7; white-space: pre-wrap; }
 
+  /* メッセージリコメンド */
+  .msg-recommend { margin-top: 8px; }
+  .msg-recommend-header { font-size: 0.72rem; color: #a0a0a0; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
+  .msg-recommend-list { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; }
+  .msg-chip { background: #fffde7; border: 1px solid #f9a825; border-radius: 8px; padding: 8px 12px; font-size: 0.82rem; color: #555; line-height: 1.5; cursor: pointer; transition: all 0.15s; text-align: left; white-space: pre-wrap; }
+  .msg-chip:hover { background: #fff8e1; border-color: #f57f17; }
+  .msg-chip-meta { font-size: 0.68rem; color: #aaa; margin-top: 4px; }
+  .msg-chip.used-for-this { opacity: 0.5; border-style: dashed; }
+  .msg-chip.used-for-this::after { content: '（この方に送信済み）'; font-size: 0.68rem; color: #e65100; margin-left: 6px; }
+
   .empty-history { text-align: center; padding: 40px 20px; color: var(--gray); background: white; border-radius: var(--radius); box-shadow: var(--shadow); }
 
   /* モーダル */
@@ -446,6 +456,10 @@
       <div class="form-group">
         <label>📮 同封したメッセージカードの内容</label>
         <textarea id="hMessage" rows="4" placeholder="今回同封したカードに書いた文をそのまま記録…"></textarea>
+        <div class="msg-recommend" id="msgRecommend" style="display:none">
+          <div class="msg-recommend-header">💡 過去のメッセージから選ぶ</div>
+          <div class="msg-recommend-list" id="msgRecommendList"></div>
+        </div>
       </div>
     </div>
 
@@ -1675,8 +1689,85 @@ function openHistoryModal(historyId) {
     setVal('hProduct', '');
   }
   onProductChange();
+  renderMessageRecommendations();
   document.getElementById('historyModal').classList.add('open');
   document.getElementById('hProduct').focus();
+}
+
+// ===== メッセージカード リコメンド機能 =====
+function renderMessageRecommendations() {
+  const wrap = document.getElementById('msgRecommend');
+  const list = document.getElementById('msgRecommendList');
+  if (!wrap || !list) return;
+
+  // 全顧客の過去メッセージを収集（重複排除）
+  const msgMap = new Map(); // message -> { text, lastDate, count, sentToCurrentCustomer }
+  const currentCustId = selectedCustomerId;
+  customers.forEach(c => {
+    (c.history || []).forEach(h => {
+      const msg = (h.message || '').trim();
+      if (!msg) return;
+      const existing = msgMap.get(msg);
+      if (existing) {
+        existing.count++;
+        if (h.date > existing.lastDate) existing.lastDate = h.date;
+        if (c.id === currentCustId) existing.sentToCurrentCustomer = true;
+      } else {
+        msgMap.set(msg, {
+          text: msg,
+          lastDate: h.date || '',
+          count: 1,
+          sentToCurrentCustomer: c.id === currentCustId
+        });
+      }
+    });
+  });
+
+  // 現在の顧客の定番メモも候補に追加
+  if (currentCustId) {
+    const cc = getCustomer(currentCustId);
+    const memo = (cc && cc.memo || '').trim();
+    if (memo && !msgMap.has(memo)) {
+      msgMap.set(memo, { text: memo, lastDate: '', count: 0, sentToCurrentCustomer: false, isTemplate: true });
+    }
+  }
+
+  if (msgMap.size === 0) {
+    wrap.style.display = 'none';
+    return;
+  }
+
+  // ソート: 送信済みを下に、使用回数順→新しい順
+  const msgs = Array.from(msgMap.values()).sort((a, b) => {
+    if (a.sentToCurrentCustomer !== b.sentToCurrentCustomer) return a.sentToCurrentCustomer ? 1 : -1;
+    if (a.isTemplate) return -1;
+    if (b.isTemplate) return 1;
+    if (b.count !== a.count) return b.count - a.count;
+    return b.lastDate.localeCompare(a.lastDate);
+  });
+
+  // 最大10件表示
+  const top = msgs.slice(0, 10);
+  list.innerHTML = top.map(m => {
+    const cls = m.sentToCurrentCustomer ? 'msg-chip used-for-this' : 'msg-chip';
+    const preview = m.text.length > 80 ? m.text.substring(0, 80) + '…' : m.text;
+    const meta = m.isTemplate
+      ? '📌 この方の定番メモ'
+      : m.count + '回使用' + (m.lastDate ? ' ・ 最終: ' + formatDate(m.lastDate) : '');
+    return `<button class="${cls}" onclick="selectRecommendedMsg(this)" data-msg="${escHtml(m.text)}">
+      ${escHtml(preview)}
+      <div class="msg-chip-meta">${meta}</div>
+    </button>`;
+  }).join('');
+
+  wrap.style.display = '';
+}
+
+function selectRecommendedMsg(btn) {
+  const msg = btn.getAttribute('data-msg');
+  document.getElementById('hMessage').value = msg;
+  document.getElementById('hMessage').focus();
+  showToast('📮 メッセージを選択しました');
 }
 
 async function saveHistory() {
