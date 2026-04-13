@@ -192,6 +192,58 @@
   .lock-btn { width: 100%; margin-top: 14px; padding: 12px; background: var(--green); color: white; border: none; border-radius: 10px; font-size: 1rem; font-weight: 700; cursor: pointer; }
   .lock-btn:hover { background: #3a6b49; }
   .lock-error { color: #e53935; font-size: 0.82rem; margin-top: 10px; display: none; }
+
+  /* ===== iPad / タブレット対応 ===== */
+  /* サイドバー戻るボタン（タブレット用、通常は非表示） */
+  .sidebar-back { display: none; }
+
+  @media (max-width: 900px) {
+    /* ヘッダー: ボタンを折り返し可能にする */
+    header { flex-wrap: wrap; padding: 10px 14px; gap: 8px; }
+    header h1 { font-size: 1rem; }
+    .tab-btn { padding: 5px 10px; font-size: 0.75rem; }
+
+    /* サイドバー幅を縮小 */
+    .sidebar { width: 240px; }
+  }
+
+  @media (max-width: 768px) {
+    /* タブレット縦向き: サイドバーを全幅オーバーレイに切り替え */
+    .layout { position: relative; }
+    .sidebar {
+      position: absolute; inset: 0; z-index: 50;
+      width: 100%; background: white;
+      transition: transform 0.2s ease;
+    }
+    .sidebar.hidden-mobile { transform: translateX(-100%); pointer-events: none; }
+    .main { width: 100%; }
+
+    /* サイドバー内「戻る」ボタン表示 */
+    .sidebar-back {
+      display: flex; align-items: center; gap: 6px;
+      padding: 10px 16px; background: var(--green-light);
+      border: none; border-bottom: 1px solid var(--border);
+      font-size: 0.85rem; font-weight: 600; color: var(--green);
+      cursor: pointer; width: 100%;
+    }
+
+    /* ヘッダーにサイドバー表示ボタン追加用 */
+    .btn-show-sidebar {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: rgba(255,255,255,0.15); color: white;
+      border: 1px solid rgba(255,255,255,0.3); border-radius: 20px;
+      padding: 5px 12px; font-size: 0.78rem; font-weight: 600; cursor: pointer;
+    }
+
+    /* 顧客詳細 */
+    .customer-detail { max-width: 100%; }
+    .detail-header { flex-direction: column; align-items: center; text-align: center; }
+    .detail-actions { justify-content: center; }
+    .stats-row { justify-content: center; }
+
+    /* モーダルをフル幅に */
+    .modal { width: 95vw; max-width: 95vw; padding: 20px; }
+  }
 </style>
 </head>
 <body>
@@ -219,6 +271,7 @@
     <h1>リベシティ市場 CRM</h1>
     <div class="subtitle">お客様の豆・メッセージカード記録</div>
   </div>
+  <button class="btn-show-sidebar" id="btnShowSidebar" onclick="showSidebar()" style="display:none">☰ 顧客一覧</button>
   <button class="tab-btn active" id="tabCRM" onclick="switchTab('crm')">👤 顧客管理</button>
   <button class="tab-btn" id="tabShip" onclick="switchTab('ship')">🚚 発送管理</button>
   <button class="tab-btn" onclick="exportBackupCSV()" title="顧客データをCSVバックアップ"
@@ -228,7 +281,8 @@
 </header>
 
 <div class="layout">
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebarPanel">
+    <button class="sidebar-back" id="sidebarBack" onclick="hideSidebar()">← 詳細に戻る</button>
     <div class="sidebar-header">
       <input type="text" id="searchInput" placeholder="顧客を検索..." oninput="renderCustomerList()">
       <button onclick="toggleRealName()" id="btnEye" title="本名を表示する"
@@ -604,9 +658,17 @@ function switchTab(tab) {
   currentTab = tab;
   document.getElementById('tabCRM').classList.toggle('active', tab === 'crm');
   document.getElementById('tabShip').classList.toggle('active', tab === 'ship');
-  document.querySelector('.sidebar').style.display = tab === 'crm' ? '' : 'none';
+  const sb = document.getElementById('sidebarPanel');
+  if (tab === 'crm') {
+    sb.style.display = '';
+    if (_isTablet() && selectedCustomerId) hideSidebar();
+    else if (_isTablet()) showSidebar();
+  } else {
+    sb.style.display = 'none';
+  }
   if (tab === 'ship') renderShipmentList();
-  else { renderCustomerList(); if (selectedCustomerId) renderDetail(); else document.getElementById('main').innerHTML = `<div class="empty-state"><div class="icon">☕</div><p>左から顧客を選んでください</p></div>`; }
+  else { renderCustomerList(); if (selectedCustomerId) renderDetail(); else document.getElementById('main').innerHTML = `<div class="empty-state"><div class="icon">☕</div><p>顧客を選んでください</p><p style="font-size:0.8rem;color:#aaa">「☰ 顧客一覧」で一覧を開けます</p></div>`; }
+  _updateSidebarButtons();
 }
 
 // ===== 発送管理 =====
@@ -1478,7 +1540,38 @@ function selectCustomer(id) {
   selectedCustomerId = id;
   renderCustomerList();
   renderDetail();
+  // タブレット: 顧客選択でサイドバーを閉じる
+  if (window.innerWidth <= 768) hideSidebar();
 }
+
+// ===== タブレット用サイドバー表示/非表示 =====
+function _isTablet() { return window.innerWidth <= 768; }
+function showSidebar() {
+  const sb = document.getElementById('sidebarPanel');
+  if (sb) { sb.classList.remove('hidden-mobile'); sb.style.transform = ''; }
+  _updateSidebarButtons();
+}
+function hideSidebar() {
+  const sb = document.getElementById('sidebarPanel');
+  if (sb && _isTablet()) sb.classList.add('hidden-mobile');
+  _updateSidebarButtons();
+}
+function _updateSidebarButtons() {
+  const isTab = _isTablet();
+  const sbHidden = document.getElementById('sidebarPanel')?.classList.contains('hidden-mobile');
+  const btnShow = document.getElementById('btnShowSidebar');
+  if (btnShow) btnShow.style.display = (isTab && currentTab === 'crm') ? '' : 'none';
+  const btnBack = document.getElementById('sidebarBack');
+  if (btnBack) btnBack.style.display = (isTab && selectedCustomerId) ? '' : 'none';
+}
+window.addEventListener('resize', () => {
+  const sb = document.getElementById('sidebarPanel');
+  if (!_isTablet()) {
+    sb?.classList.remove('hidden-mobile');
+    sb && (sb.style.transform = '');
+  }
+  _updateSidebarButtons();
+});
 
 function renderDetail() {
   const c = getCustomer(selectedCustomerId);
@@ -1920,6 +2013,8 @@ document.addEventListener('keydown', e=>{
 // Firebase接続前の初期表示
 document.getElementById('customerCount').textContent = '接続中...';
 updateEyeButton();
+// タブレット用初期化
+if (typeof _updateSidebarButtons === 'function') _updateSidebarButtons();
 </script>
 </body>
 </html>
