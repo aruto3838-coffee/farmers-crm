@@ -983,6 +983,8 @@ async function generateClickpostCSV(input) {
     status.textContent = '';
     input.value = '';
     renderClickpostSelection();
+    // 郵便番号と住所の整合性チェック（バックグラウンド実行）
+    verifyZipCodes();
   } catch(e) {
     status.textContent = '⚠️ 読み込みに失敗しました';
     console.error(e);
@@ -1016,7 +1018,10 @@ function renderClickpostSelection() {
       <td style="text-align:center;padding:6px 4px;vertical-align:top">
         <input type="checkbox" ${r.selected?'checked':''} onchange="_clickpostData[${i}].selected=this.checked">
       </td>
-      <td style="padding:4px;vertical-align:top">${inp(r.zip,'zip',i,'90px')}</td>
+      <td style="padding:4px;vertical-align:top">
+        ${inp(r.zip,'zip',i,'90px')}
+        <div data-zipcheck="${i}" style="margin-top:3px;font-size:0.68rem"></div>
+      </td>
       <td style="padding:4px;vertical-align:top">
         ${inp(r.name,'name',i,'110px')}
         ${r.libeName ? `<div style="font-size:0.72rem;color:#4a8a4c;margin-top:3px;word-break:break-all;line-height:1.3">🌿 ${escHtml(r.libeName)}</div>` : ''}
@@ -1097,6 +1102,89 @@ function _clickpostRecheck(i) {
         ? `<span title="元の住所と分割結果の数字が一致しません" style="display:inline-block;background:#e65100;color:white;font-size:0.65rem;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:4px">要確認</span>`
         : `<span title="元の住所と数字が一致しています" style="display:inline-block;color:#2e7d32;font-size:0.8rem;margin-left:4px">✓</span>`;
     }
+  }
+}
+
+// ===== 郵便番号 ↔ 住所 整合性チェック =====
+// zipcloud API を使用（無料・登録不要）
+// https://zipcloud.ibsnet.co.jp/doc/api
+async function verifyZipCodes() {
+  for (let i = 0; i < _clickpostData.length; i++) {
+    const r = _clickpostData[i];
+    const el = document.querySelector(`[data-zipcheck="${i}"]`);
+    if (!el) continue;
+    const zip = (r.zip || '').replace(/[^0-9]/g, '');
+    if (!zip || zip.length !== 7) {
+      el.innerHTML = '<span style="color:#e65100">⚠️ 郵便番号が不正</span>';
+      r._zipStatus = 'invalid';
+      continue;
+    }
+    el.innerHTML = '<span style="color:#aaa">確認中...</span>';
+    try {
+      const res = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${zip}`);
+      const data = await res.json();
+      if (!data.results || !data.results.length) {
+        el.innerHTML = '<span style="color:#e65100" title="この郵便番号は存在しません">⚠️ 該当なし</span>';
+        r._zipStatus = 'notfound';
+        continue;
+      }
+      // API結果の住所（都道府県＋市区町村＋町域）
+      const result = data.results[0];
+      const apiAddr = (result.address1 || '') + (result.address2 || '') + (result.address3 || '');
+      // 元の住所の先頭部分と照合
+      const origAddr = (r.addrOriginal || '').replace(/\s+/g, '');
+      // 都道府県＋市区町村が含まれているかチェック
+      const prefCity = (result.address1 || '') + (result.address2 || '');
+      if (origAddr.includes(result.address1) && origAddr.includes(result.address2)) {
+        el.innerHTML = `<span style="color:#2e7d32" title="${escHtml(apiAddr)}">✓ 一致</span>`;
+        r._zipStatus = 'ok';
+      } else {
+        el.innerHTML = `<span style="color:#e65100;font-weight:700" title="〒${zip} → ${escHtml(apiAddr)}">⚠️ 不一致</span>`
+          + `<div style="color:#e65100;margin-top:2px;line-height:1.3">〒→ ${escHtml(prefCity)}</div>`;
+        r._zipStatus = 'mismatch';
+      }
+    } catch (e) {
+      el.innerHTML = '<span style="color:#aaa" title="API接続に失敗しました">— 確認不可</span>';
+      r._zipStatus = 'error';
+      console.error('Zip verify error:', e);
+    }
+    // API負荷を抑えるため200ms間隔で送信
+    await new Promise(ok => setTimeout(ok, 200));
+  }
+  // 全件チェック完了後、不一致があればサマリー表示
+  _updateZipSummary();
+}
+function _updateZipSummary() {
+  const mismatchZips = _clickpostData.filter(r => r._zipStatus === 'mismatch');
+  const notfoundZips = _clickpostData.filter(r => r._zipStatus === 'notfound');
+  const invalidZips = _clickpostData.filter(r => r._zipStatus === 'invalid');
+  const total = mismatchZips.length + notfoundZips.length + invalidZips.length;
+  const container = document.getElementById('clickpostSelection');
+  if (!container) return;
+  const existing = document.getElementById('zipSummary');
+  if (existing) existing.remove();
+  if (total > 0) {
+    const div = document.createElement('div');
+    div.id = 'zipSummary';
+    div.style.cssText = 'margin-top:10px;padding:8px 12px;background:#fff3e0;border-left:4px solid #e65100;border-radius:4px;font-size:0.85rem;color:#6d4c00';
+    div.innerHTML = `🔍 郵便番号チェック: <strong>${total}件</strong>に問題があります`
+      + (mismatchZips.length ? `（住所不一致: ${mismatchZips.length}件）` : '')
+      + (notfoundZips.length ? `（該当なし: ${notfoundZips.length}件）` : '')
+      + (invalidZips.length ? `（番号不正: ${invalidZips.length}件）` : '');
+    // 注意書きの後ろに挿入
+    const notices = container.querySelectorAll('[style*="border-left"]');
+    const lastNotice = notices[notices.length - 1];
+    if (lastNotice && lastNotice.nextSibling) lastNotice.parentNode.insertBefore(div, lastNotice.nextSibling);
+    else container.appendChild(div);
+  } else if (_clickpostData.length && _clickpostData.every(r => r._zipStatus === 'ok')) {
+    const div = document.createElement('div');
+    div.id = 'zipSummary';
+    div.style.cssText = 'margin-top:10px;padding:8px 12px;background:#e8f5e9;border-left:4px solid var(--green);border-radius:4px;font-size:0.85rem;color:#2e5c30';
+    div.innerHTML = '🔍 郵便番号チェック: ✅ 全件、郵便番号と住所が一致しています';
+    const notices = container.querySelectorAll('[style*="border-left"]');
+    const lastNotice = notices[notices.length - 1];
+    if (lastNotice && lastNotice.nextSibling) lastNotice.parentNode.insertBefore(div, lastNotice.nextSibling);
+    else container.appendChild(div);
   }
 }
 
