@@ -201,6 +201,7 @@
   .demo-banner.active { display:block; }
   body.demo-mode .detail-avatar.has-photo img { filter: blur(8px); }
   body.demo-mode .customer-avatar.has-photo img { filter: blur(8px); }
+  body.demo-mode .ship-avatar img { filter: blur(8px); }
 
   @media (max-width: 900px) {
     /* ヘッダー: ボタンを折り返し可能にする */
@@ -646,11 +647,11 @@ let demoMode = false;
 // デモモード用: 顧客ごとに固定のデモ名を割り当てる
 const _demoNameCache = {};
 let _demoCounter = 0;
-const _demoNames = ['りんご','みかん','ぶどう','もも','さくらんぼ','メロン','バナナ','パイナップル','いちご','キウイ','レモン','マンゴー','ライチ','すもも','なし','かき','あんず','ゆず','びわ','プラム'];
+const _demoNames = ['エチオピア','コロンビア','ブラジル','グアテマラ','ケニア','コスタリカ','ルワンダ','パナマ','ホンジュラス','エルサルバドル','タンザニア','インドネシア','ペルー','ニカラグア','イエメン','ジャマイカ','ハワイ','ボリビア','メキシコ','ウガンダ'];
 function demoName(customerId) {
   if (!_demoNameCache[customerId]) {
     const idx = Object.keys(_demoNameCache).length % _demoNames.length;
-    _demoNameCache[customerId] = _demoNames[idx] + 'さん';
+    _demoNameCache[customerId] = _demoNames[idx];
   }
   return _demoNameCache[customerId];
 }
