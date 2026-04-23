@@ -500,6 +500,47 @@
         </div>
       </div>
 
+      <!-- 3個目セクション -->
+      <div style="margin:8px 0 4px">
+        <button type="button" id="btn3rdSet" onclick="toggle3rdSet()"
+          style="background:none;border:1px dashed #81b898;color:#4a7c59;border-radius:6px;padding:5px 14px;font-size:0.82rem;cursor:pointer;width:100%">
+          ＋ 3個目の銘柄を追加
+        </button>
+      </div>
+      <div id="sec3rdSet" style="display:none;background:#f9fffe;border:1px solid #c8e6c9;border-radius:8px;padding:12px;margin-bottom:8px">
+        <div style="font-size:0.8rem;color:#4a7c59;font-weight:600;margin-bottom:8px">📦 3個目</div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label>☕ 銘柄５</label>
+          <div class="form-row" style="margin-bottom:6px">
+            <select id="hBean5Sel" onchange="onBeanChange('5')" style="flex:1">
+              <option value="">未選択</option>
+              <option>エチオピアN</option>
+              <option>エチオピアW</option>
+              <option>ケニアW</option>
+              <option>ブルンジN</option>
+              <option value="その他">その他</option>
+            </select>
+            <input type="text" id="hBean5Custom" placeholder="銘柄名を入力" style="flex:1;display:none">
+          </div>
+          <input type="text" id="hBean5Note" placeholder="農園名など備考">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>☕ 銘柄６</label>
+          <div class="form-row" style="margin-bottom:6px">
+            <select id="hBean6Sel" onchange="onBeanChange('6')" style="flex:1">
+              <option value="">未選択</option>
+              <option>エチオピアN</option>
+              <option>エチオピアW</option>
+              <option>ケニアW</option>
+              <option>ブルンジN</option>
+              <option value="その他">その他</option>
+            </select>
+            <input type="text" id="hBean6Custom" placeholder="銘柄名を入力" style="flex:1;display:none">
+          </div>
+          <input type="text" id="hBean6Note" placeholder="農園名など備考">
+        </div>
+      </div>
+
       <div class="form-group">
         <label>🎁 おまけ銘柄</label>
         <div class="form-row" style="margin-bottom:6px">
@@ -1733,6 +1774,20 @@ function renderDetail() {
                 ${h.beanGrind?`<span class="bean-type">${escHtml(h.beanGrind)}</span>`:''}
                 ${h.bean4Note?`<div style="font-size:0.75rem;color:#888;margin-top:3px">${escHtml(h.bean4Note)}</div>`:''}
               </div>`:''}
+              ${h.bean5?`
+              <div class="bean-item">
+                <div class="bean-label">☕ 銘柄５（3個目）</div>
+                <div class="bean-name">${escHtml(h.bean5)}</div>
+                ${h.beanGrind?`<span class="bean-type">${escHtml(h.beanGrind)}</span>`:''}
+                ${h.bean5Note?`<div style="font-size:0.75rem;color:#888;margin-top:3px">${escHtml(h.bean5Note)}</div>`:''}
+              </div>`:''}
+              ${h.bean6?`
+              <div class="bean-item">
+                <div class="bean-label">☕ 銘柄６（3個目）</div>
+                <div class="bean-name">${escHtml(h.bean6)}</div>
+                ${h.beanGrind?`<span class="bean-type">${escHtml(h.beanGrind)}</span>`:''}
+                ${h.bean6Note?`<div style="font-size:0.75rem;color:#888;margin-top:3px">${escHtml(h.bean6Note)}</div>`:''}
+              </div>`:''}
               ${h.bonusBean?`
               <div class="bean-item bonus">
                 <div class="bean-label">🎁 おまけ銘柄</div>
@@ -1877,6 +1932,22 @@ function toggle2ndSet() {
   }
 }
 
+// ===== 3個目セクション トグル =====
+function toggle3rdSet() {
+  const sec = document.getElementById('sec3rdSet');
+  const btn = document.getElementById('btn3rdSet');
+  const isOpen = sec.style.display !== 'none';
+  if (isOpen) {
+    sec.style.display = 'none';
+    btn.textContent = '＋ 3個目の銘柄を追加';
+    setBeanValue('5',''); setBeanValue('6','');
+    setVal('hBean5Note',''); setVal('hBean6Note','');
+  } else {
+    sec.style.display = '';
+    btn.textContent = '－ 3個目を閉じる';
+  }
+}
+
 // ===== 商品選択による動的表示 =====
 // ===== 商品ごとの既定価格 =====
 // 今後値段が変わる可能性あり。変更時はここを書き換える。
@@ -1920,19 +1991,26 @@ function openHistoryModal(historyId) {
     setBeanValue('2', h.bean2||''); setVal('hBean2Note', h.bean2Note);
     setBeanValue('3', h.bean3||''); setVal('hBean3Note', h.bean3Note||'');
     setBeanValue('4', h.bean4||''); setVal('hBean4Note', h.bean4Note||'');
+    setBeanValue('5', h.bean5||''); setVal('hBean5Note', h.bean5Note||'');
+    setBeanValue('6', h.bean6||''); setVal('hBean6Note', h.bean6Note||'');
     setBeanValue('Bonus', h.bonusBean||''); setVal('hBonusBeanNote', h.bonusBeanNote);
     setVal('hSeal', h.seal); setVal('hMessage', h.message); setVal('hNote', h.note);
-    // 2個目セクションの表示制御
+    // 2個目・3個目セクションの表示制御
     const has2nd = !!(h.bean3 || h.bean4);
     document.getElementById('sec2ndSet').style.display = has2nd ? '' : 'none';
     document.getElementById('btn2ndSet').textContent = has2nd ? '－ 2個目を閉じる' : '＋ 2個目の銘柄を追加';
+    const has3rd = !!(h.bean5 || h.bean6);
+    document.getElementById('sec3rdSet').style.display = has3rd ? '' : 'none';
+    document.getElementById('btn3rdSet').textContent = has3rd ? '－ 3個目を閉じる' : '＋ 3個目の銘柄を追加';
   } else {
     setVal('hDate', todayLocal());
-    ['hShipDate','hRoastDate','hAmount','hBeanGrind','hBean1Note','hBean2Note','hBean3Note','hBean4Note','hBonusBeanNote','hSeal','hMessage','hNote']
+    ['hShipDate','hRoastDate','hAmount','hBeanGrind','hBean1Note','hBean2Note','hBean3Note','hBean4Note','hBean5Note','hBean6Note','hBonusBeanNote','hSeal','hMessage','hNote']
       .forEach(i=>setVal(i,''));
-    setBeanValue('1',''); setBeanValue('2',''); setBeanValue('3',''); setBeanValue('4',''); setBeanValue('Bonus','');
+    setBeanValue('1',''); setBeanValue('2',''); setBeanValue('3',''); setBeanValue('4',''); setBeanValue('5',''); setBeanValue('6',''); setBeanValue('Bonus','');
     document.getElementById('sec2ndSet').style.display = 'none';
     document.getElementById('btn2ndSet').textContent = '＋ 2個目の銘柄を追加';
+    document.getElementById('sec3rdSet').style.display = 'none';
+    document.getElementById('btn3rdSet').textContent = '＋ 3個目の銘柄を追加';
     setVal('hProduct', '');
   }
   onProductChange();
@@ -2038,6 +2116,10 @@ async function saveHistory() {
     bean3Note: isSingle ? getVal('hBean3Note').trim() : '',
     bean4: isSingle ? getBeanValue('4') : '',
     bean4Note: isSingle ? getVal('hBean4Note').trim() : '',
+    bean5: isSingle ? getBeanValue('5') : '',
+    bean5Note: isSingle ? getVal('hBean5Note').trim() : '',
+    bean6: isSingle ? getBeanValue('6') : '',
+    bean6Note: isSingle ? getVal('hBean6Note').trim() : '',
     bonusBean: isSingle ? getBeanValue('Bonus') : '',
     bonusBeanNote: isSingle ? getVal('hBonusBeanNote').trim() : '',
     seal: getVal('hSeal').trim(),
