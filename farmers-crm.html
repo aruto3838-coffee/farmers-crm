@@ -290,6 +290,7 @@
   <button class="tab-btn active" id="tabCRM" onclick="switchTab('crm')">👤 顧客管理</button>
   <button class="tab-btn" id="tabShip" onclick="switchTab('ship')">🚚 発送管理</button>
   <button class="tab-btn" id="tabSales" onclick="switchTab('sales')">📊 売上管理</button>
+  <button class="tab-btn" id="tabAnalytics" onclick="switchTab('analytics')">📈 分析</button>
   <button class="tab-btn" onclick="exportBackupCSV()" title="顧客データをCSVバックアップ"
     style="background:none;border:1px solid rgba(255,255,255,0.3);color:white">💾 バックアップ</button>
   <button class="tab-btn" id="btnDemo" onclick="toggleDemoMode()" title="デモモード切替"
@@ -731,6 +732,7 @@ function switchTab(tab) {
   document.getElementById('tabCRM').classList.toggle('active', tab === 'crm');
   document.getElementById('tabShip').classList.toggle('active', tab === 'ship');
   document.getElementById('tabSales').classList.toggle('active', tab === 'sales');
+  document.getElementById('tabAnalytics').classList.toggle('active', tab === 'analytics');
   const sb = document.getElementById('sidebarPanel');
   if (tab === 'crm') {
     sb.style.display = '';
@@ -741,6 +743,7 @@ function switchTab(tab) {
   }
   if (tab === 'ship') renderShipmentList();
   else if (tab === 'sales') renderSalesReport();
+  else if (tab === 'analytics') renderAnalytics();
   else { renderCustomerList(); if (selectedCustomerId) renderDetail(); else document.getElementById('main').innerHTML = `<div class="empty-state"><div class="icon">☕</div><p>顧客を選んでください</p><p style="font-size:0.8rem;color:#aaa">「☰ 顧客一覧」で一覧を開けます</p></div>`; }
   _updateSidebarButtons();
 }
@@ -942,6 +945,197 @@ function exportSalesCSV(year) {
   a.href = URL.createObjectURL(blob);
   a.download = `売上管理_${year}年.csv`;
   a.click();
+}
+
+// ===== 分析（商品別・銘柄別・リピート予測・月別予測）=====
+let analyticsYear = 2026;
+
+function renderAnalytics() {
+  const main = document.getElementById('main');
+  const today = todayLocal();
+
+  // === 商品別集計 ===
+  const productStats = {};
+  customers.forEach(c => {
+    (c.history||[]).forEach(h => {
+      if (!h.date || !h.product) return;
+      if (parseInt(h.date.slice(0,4)) !== analyticsYear) return;
+      if (!productStats[h.product]) productStats[h.product] = { count: 0, amount: 0 };
+      productStats[h.product].count++;
+      productStats[h.product].amount += parseInt(h.amount) || 0;
+    });
+  });
+  const productRows = Object.entries(productStats)
+    .sort((a,b) => b[1].amount - a[1].amount)
+    .map(([p, s]) => `
+      <tr>
+        <td style="padding:8px 14px">${escHtml(p)}</td>
+        <td style="padding:8px 14px;text-align:right">${s.count}件</td>
+        <td style="padding:8px 14px;text-align:right;font-weight:600">¥${s.amount.toLocaleString()}</td>
+      </tr>`).join('');
+
+  // === 銘柄別集計（豆の使用回数）===
+  const beanStats = {};
+  customers.forEach(c => {
+    (c.history||[]).forEach(h => {
+      if (!h.date) return;
+      if (parseInt(h.date.slice(0,4)) !== analyticsYear) return;
+      ['bean1','bean2','bean3','bean4','bean5','bean6','bonusBean'].forEach(field => {
+        const bean = h[field];
+        if (!bean) return;
+        beanStats[bean] = (beanStats[bean] || 0) + 1;
+      });
+    });
+  });
+  const beanRows = Object.entries(beanStats)
+    .sort((a,b) => b[1] - a[1])
+    .map(([b, n], i) => `
+      <tr>
+        <td style="padding:8px 14px">${i===0?'🥇 ':i===1?'🥈 ':i===2?'🥉 ':'　 '}${escHtml(b)}</td>
+        <td style="padding:8px 14px;text-align:right;font-weight:600">${n}回</td>
+      </tr>`).join('');
+
+  // === リピート予測 ===
+  const predictions = [];
+  customers.forEach(c => {
+    const orders = (c.history||[])
+      .filter(h => h.date && h.amount)
+      .sort((a,b) => a.date.localeCompare(b.date));
+    if (orders.length < 2) return;
+
+    const intervals = [];
+    for (let i = 1; i < orders.length; i++) {
+      const days = Math.round((new Date(orders[i].date) - new Date(orders[i-1].date)) / 86400000);
+      intervals.push(days);
+    }
+    const avgInterval = Math.round(intervals.reduce((a,b)=>a+b,0) / intervals.length);
+    const lastOrder = orders[orders.length-1];
+    const predDate = new Date(new Date(lastOrder.date).getTime() + avgInterval * 86400000)
+      .toISOString().slice(0,10);
+    const totalAmount = orders.reduce((s,o) => s + (parseInt(o.amount) || 0), 0);
+    const avgAmount = Math.round(totalAmount / orders.length);
+
+    predictions.push({
+      customer: c, lastDate: lastOrder.date, avgInterval, predDate, avgAmount, orderCount: orders.length
+    });
+  });
+  predictions.sort((a,b) => a.predDate.localeCompare(b.predDate));
+
+  const predictionRows = predictions.slice(0, 15).map(p => {
+    const diff = Math.round((new Date(p.predDate) - new Date(today)) / 86400000);
+    const status = diff < 0 ? `<span style="color:#c62828">${Math.abs(diff)}日経過</span>`
+                : diff === 0 ? `<span style="color:#e65100;font-weight:700">本日</span>`
+                : diff <= 7  ? `<span style="color:var(--green);font-weight:700">${diff}日後</span>`
+                : `<span style="color:#888">${diff}日後</span>`;
+    return `
+      <tr>
+        <td style="padding:8px 14px">${escHtml(displayLibeName(p.customer) || maskedName(p.customer))}</td>
+        <td style="padding:8px 14px;text-align:right;font-size:0.82rem">${formatDate(p.lastDate)}</td>
+        <td style="padding:8px 14px;text-align:right;font-size:0.82rem">${p.avgInterval}日</td>
+        <td style="padding:8px 14px;text-align:right;font-size:0.82rem">${formatDate(p.predDate)}<br>${status}</td>
+        <td style="padding:8px 14px;text-align:right">¥${p.avgAmount.toLocaleString()}</td>
+      </tr>`;
+  }).join('');
+
+  // === 月別予測（今月含む3ヶ月）===
+  const todayObj = new Date(today);
+  const months = [];
+  for (let i = 0; i < 3; i++) {
+    const d = new Date(todayObj.getFullYear(), todayObj.getMonth() + i, 1);
+    months.push({ year: d.getFullYear(), month: d.getMonth()+1, confirmed: 0, predicted: 0 });
+  }
+
+  customers.forEach(c => {
+    (c.history||[]).forEach(h => {
+      if (!h.date || !h.amount) return;
+      const y = parseInt(h.date.slice(0,4));
+      const m = parseInt(h.date.slice(5,7));
+      const month = months.find(mo => mo.year === y && mo.month === m);
+      if (month) month.confirmed += parseInt(h.amount) || 0;
+    });
+  });
+
+  predictions.forEach(p => {
+    if (p.predDate < today) return;
+    const y = parseInt(p.predDate.slice(0,4));
+    const m = parseInt(p.predDate.slice(5,7));
+    const month = months.find(mo => mo.year === y && mo.month === m);
+    if (month) month.predicted += p.avgAmount;
+  });
+
+  const forecastRows = months.map(m => `
+    <tr>
+      <td style="padding:8px 14px;font-weight:600">${m.year}年${m.month}月</td>
+      <td style="padding:8px 14px;text-align:right;font-size:0.82rem;color:var(--green)">¥${m.confirmed.toLocaleString()}</td>
+      <td style="padding:8px 14px;text-align:right;font-size:0.82rem;color:#888">+¥${m.predicted.toLocaleString()}</td>
+      <td style="padding:8px 14px;text-align:right;font-weight:700;color:var(--brown)">¥${(m.confirmed+m.predicted).toLocaleString()}</td>
+    </tr>`).join('');
+
+  main.innerHTML = `
+    <div style="padding:24px;max-width:760px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <button onclick="analyticsYear--;renderAnalytics()" style="background:white;border:1px solid var(--border);border-radius:6px;padding:4px 12px;cursor:pointer">◀</button>
+        <div style="font-size:1.1rem;font-weight:700;color:var(--brown)">${analyticsYear}年 分析</div>
+        <button onclick="analyticsYear++;renderAnalytics()" style="background:white;border:1px solid var(--border);border-radius:6px;padding:4px 12px;cursor:pointer">▶</button>
+      </div>
+
+      <!-- 商品別 -->
+      <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px">
+        <div style="padding:14px 18px;font-weight:700;color:var(--brown);border-bottom:1px solid var(--border)">📦 商品別売上（${analyticsYear}年）</div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.88rem">
+          <thead><tr style="background:var(--green-light);font-size:0.8rem;color:var(--gray)">
+            <th style="padding:8px 14px;text-align:left">商品</th>
+            <th style="padding:8px 14px;text-align:right">件数</th>
+            <th style="padding:8px 14px;text-align:right">売上金額</th>
+          </tr></thead>
+          <tbody>${productRows || `<tr><td colspan="3" style="padding:20px;text-align:center;color:#aaa">まだデータがありません</td></tr>`}</tbody>
+        </table>
+      </div>
+
+      <!-- 銘柄別 -->
+      <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px">
+        <div style="padding:14px 18px;font-weight:700;color:var(--brown);border-bottom:1px solid var(--border)">☕ 銘柄別ランキング（${analyticsYear}年）</div>
+        <div style="padding:8px 18px;font-size:0.75rem;color:#aaa;border-bottom:1px solid var(--border)">※ シングルオリジン注文での使用回数。1注文で2銘柄使った場合は各1回として集計</div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.88rem">
+          <thead><tr style="background:var(--green-light);font-size:0.8rem;color:var(--gray)">
+            <th style="padding:8px 14px;text-align:left">銘柄</th>
+            <th style="padding:8px 14px;text-align:right">使用回数</th>
+          </tr></thead>
+          <tbody>${beanRows || `<tr><td colspan="2" style="padding:20px;text-align:center;color:#aaa">まだデータがありません</td></tr>`}</tbody>
+        </table>
+      </div>
+
+      <!-- リピート予測 -->
+      <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px">
+        <div style="padding:14px 18px;font-weight:700;color:var(--brown);border-bottom:1px solid var(--border)">🔁 リピート予測（次回予想日が近い順 上位15名）</div>
+        <div style="padding:8px 18px;font-size:0.75rem;color:#aaa;border-bottom:1px solid var(--border)">※ 過去2回以上注文があるお客様が対象。「最終注文日 + 平均間隔」を予測値としています</div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.88rem">
+          <thead><tr style="background:var(--green-light);font-size:0.8rem;color:var(--gray)">
+            <th style="padding:8px 14px;text-align:left">お名前</th>
+            <th style="padding:8px 14px;text-align:right">最終注文</th>
+            <th style="padding:8px 14px;text-align:right">平均間隔</th>
+            <th style="padding:8px 14px;text-align:right">次回予想</th>
+            <th style="padding:8px 14px;text-align:right">想定金額</th>
+          </tr></thead>
+          <tbody>${predictionRows || `<tr><td colspan="5" style="padding:20px;text-align:center;color:#aaa">まだ予測データがありません（2回以上の注文履歴が必要）</td></tr>`}</tbody>
+        </table>
+      </div>
+
+      <!-- 月別予測 -->
+      <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px">
+        <div style="padding:14px 18px;font-weight:700;color:var(--brown);border-bottom:1px solid var(--border)">📅 今後3ヶ月の売上予測</div>
+        <div style="padding:8px 18px;font-size:0.75rem;color:#aaa;border-bottom:1px solid var(--border)">※ 確定 = すでに記録された注文 / 予測 = リピート予測の合計</div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.88rem">
+          <thead><tr style="background:var(--green-light);font-size:0.8rem;color:var(--gray)">
+            <th style="padding:8px 14px;text-align:left">月</th>
+            <th style="padding:8px 14px;text-align:right">確定</th>
+            <th style="padding:8px 14px;text-align:right">予測</th>
+            <th style="padding:8px 14px;text-align:right">合計見込み</th>
+          </tr></thead>
+          <tbody>${forecastRows}</tbody>
+        </table>
+      </div>
+    </div>`;
 }
 
 // ===== 発送済みチェック =====
