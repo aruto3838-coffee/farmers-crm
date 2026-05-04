@@ -1001,7 +1001,7 @@ function renderAnalytics() {
     const orders = (c.history||[])
       .filter(h => h.date && h.amount)
       .sort((a,b) => a.date.localeCompare(b.date));
-    if (orders.length < 2) return;
+    if (orders.length < 4) return;
 
     const intervals = [];
     for (let i = 1; i < orders.length; i++) {
@@ -1144,7 +1144,7 @@ function renderAnalytics() {
       <!-- リピート予測 -->
       <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px">
         <div style="padding:14px 18px;font-weight:700;color:var(--brown);border-bottom:1px solid var(--border)">🔁 リピート予測（次回予想日が近い順 上位15名）</div>
-        <div style="padding:8px 18px;font-size:0.75rem;color:#aaa;border-bottom:1px solid var(--border)">※ 過去2回以上注文があるお客様が対象。「最終注文日 + 平均間隔」を予測値としています</div>
+        <div style="padding:8px 18px;font-size:0.75rem;color:#aaa;border-bottom:1px solid var(--border)">※ 過去4回以上注文があるお客様が対象（リピートが安定する目安）。「最終注文日 + 平均間隔」を予測値としています</div>
         <table style="width:100%;border-collapse:collapse;font-size:0.88rem">
           <thead><tr style="background:var(--green-light);font-size:0.8rem;color:var(--gray)">
             <th style="padding:8px 14px;text-align:left">お名前</th>
