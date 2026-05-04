@@ -38,6 +38,7 @@
   .ship-badge.today { background: #fff3e0; color: #e65100; }
   .ship-badge.soon { background: #e8f5e9; color: var(--green); }
   .ship-badge.future { background: #f5f5f5; color: #888; }
+  .ship-badge.overdue { background: #fce4ec; color: #c62828; }
 
   /* レイアウト */
   .layout { display: flex; flex: 1; overflow: hidden; }
@@ -744,10 +745,11 @@ function switchTab(tab) {
 // ===== 発送管理 =====
 function renderShipmentList() {
   const today = todayLocal();
+  const threeDaysAgo = new Date(new Date(today).getTime() - 3 * 86400000).toISOString().slice(0, 10);
   const items = [];
   customers.forEach(c => {
     (c.history||[]).forEach(h => {
-      if (h.shipDate && h.shipDate >= today) {
+      if (h.shipDate && h.shipDate >= threeDaysAgo) {
         items.push({ c, h });
       }
     });
@@ -762,8 +764,8 @@ function renderShipmentList() {
 
   const rows = items.map(({ c, h }) => {
     const diff = Math.round((new Date(h.shipDate) - new Date(today)) / 86400000);
-    const badgeCls = diff === 0 ? 'today' : diff <= 3 ? 'soon' : 'future';
-    const badgeText = diff === 0 ? '今日' : diff === 1 ? '明日' : `${diff}日後`;
+    const badgeCls = diff < 0 ? 'overdue' : diff === 0 ? 'today' : diff <= 3 ? 'soon' : 'future';
+    const badgeText = diff < 0 ? `${Math.abs(diff)}日遅れ` : diff === 0 ? '今日' : diff === 1 ? '明日' : `${diff}日後`;
     // 発送一覧の名前セル: リベネームの左に顧客のプロフィール画像（photoUrl）を表示。
     // 画像が無ければリーフアイコンにフォールバック。
     const initial = escHtml((c.name||'?').charAt(0));
