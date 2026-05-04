@@ -1105,6 +1105,42 @@ function renderAnalytics() {
         </table>
       </div>
 
+      <!-- リピート率分析 -->
+      <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px">
+        <div style="padding:14px 18px;font-weight:700;color:var(--brown);border-bottom:1px solid var(--border)">📊 リピート率分析（全期間）</div>
+        <div style="padding:8px 18px;font-size:0.75rem;color:#aaa;border-bottom:1px solid var(--border)">※ N回購入のお客様のうち、N+1回目を購入した割合</div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.88rem">
+          <thead><tr style="background:var(--green-light);font-size:0.8rem;color:var(--gray)">
+            <th style="padding:8px 14px;text-align:left">購入回数</th>
+            <th style="padding:8px 14px;text-align:right">該当人数</th>
+            <th style="padding:8px 14px;text-align:right">次回も購入</th>
+            <th style="padding:8px 14px;text-align:right">継続率</th>
+          </tr></thead>
+          <tbody>${(() => {
+            // 各お客様の購入回数（注文日があるものをカウント）
+            const counts = customers.map(c => (c.history||[]).filter(h => h.date).length);
+            const maxCount = Math.max(...counts, 0);
+            if (maxCount === 0) return `<tr><td colspan="4" style="padding:20px;text-align:center;color:#aaa">まだデータがありません</td></tr>`;
+            const rows = [];
+            for (let n = 1; n <= maxCount; n++) {
+              const atLeastN  = counts.filter(c => c >= n).length;
+              const atLeastN1 = counts.filter(c => c >= n + 1).length;
+              if (atLeastN === 0) continue;
+              const rate = atLeastN1 / atLeastN * 100;
+              const rateColor = rate >= 70 ? 'var(--green)' : rate >= 40 ? '#e65100' : '#c62828';
+              rows.push(`
+                <tr>
+                  <td style="padding:8px 14px;font-weight:600">${n}回購入</td>
+                  <td style="padding:8px 14px;text-align:right">${atLeastN}名</td>
+                  <td style="padding:8px 14px;text-align:right">${atLeastN1}名</td>
+                  <td style="padding:8px 14px;text-align:right;font-weight:700;color:${rateColor}">${rate.toFixed(0)}%</td>
+                </tr>`);
+            }
+            return rows.join('');
+          })()}</tbody>
+        </table>
+      </div>
+
       <!-- リピート予測 -->
       <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px">
         <div style="padding:14px 18px;font-weight:700;color:var(--brown);border-bottom:1px solid var(--border)">🔁 リピート予測（次回予想日が近い順 上位15名）</div>
