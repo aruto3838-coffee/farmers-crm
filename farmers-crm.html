@@ -289,6 +289,7 @@
   <button class="btn-show-sidebar" id="btnShowSidebar" onclick="showSidebar()" style="display:none">☰ 顧客一覧</button>
   <button class="tab-btn active" id="tabCRM" onclick="switchTab('crm')">👤 顧客管理</button>
   <button class="tab-btn" id="tabShip" onclick="switchTab('ship')">🚚 発送管理</button>
+  <button class="tab-btn" id="tabSales" onclick="switchTab('sales')">📊 売上管理</button>
   <button class="tab-btn" onclick="exportBackupCSV()" title="顧客データをCSVバックアップ"
     style="background:none;border:1px solid rgba(255,255,255,0.3);color:white">💾 バックアップ</button>
   <button class="tab-btn" id="btnDemo" onclick="toggleDemoMode()" title="デモモード切替"
@@ -729,6 +730,7 @@ function switchTab(tab) {
   currentTab = tab;
   document.getElementById('tabCRM').classList.toggle('active', tab === 'crm');
   document.getElementById('tabShip').classList.toggle('active', tab === 'ship');
+  document.getElementById('tabSales').classList.toggle('active', tab === 'sales');
   const sb = document.getElementById('sidebarPanel');
   if (tab === 'crm') {
     sb.style.display = '';
@@ -738,6 +740,7 @@ function switchTab(tab) {
     sb.style.display = 'none';
   }
   if (tab === 'ship') renderShipmentList();
+  else if (tab === 'sales') renderSalesReport();
   else { renderCustomerList(); if (selectedCustomerId) renderDetail(); else document.getElementById('main').innerHTML = `<div class="empty-state"><div class="icon">☕</div><p>顧客を選んでください</p><p style="font-size:0.8rem;color:#aaa">「☰ 顧客一覧」で一覧を開けます</p></div>`; }
   _updateSidebarButtons();
 }
@@ -837,6 +840,108 @@ function renderShipmentList() {
         </table>
       </div>
     </div>`;
+}
+
+// ===== 売上管理 =====
+let salesYear = 2026;
+
+function renderSalesReport() {
+  const main = document.getElementById('main');
+  const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+  // 月ごとに集計
+  const monthly = Array.from({length:12}, (_,i) => ({ month: i+1, count: 0, amount: 0 }));
+  customers.forEach(c => {
+    (c.history||[]).forEach(h => {
+      if (!h.date || !h.amount) return;
+      const year = parseInt(h.date.slice(0,4));
+      const month = parseInt(h.date.slice(5,7));
+      if (year !== salesYear) return;
+      monthly[month-1].count++;
+      monthly[month-1].amount += parseInt(h.amount) || 0;
+    });
+  });
+
+  const totalAmount = monthly.reduce((s,m) => s + m.amount, 0);
+  const totalCount  = monthly.reduce((s,m) => s + m.count, 0);
+
+  const rows = monthly.map(m => `
+    <tr style="${m.amount > 0 ? '' : 'color:#ccc'}">
+      <td style="font-weight:600">${months[m.month-1]}</td>
+      <td style="text-align:right">${m.count > 0 ? m.count+'件' : '—'}</td>
+      <td style="text-align:right;font-weight:${m.amount>0?'600':'400'}">${m.amount > 0 ? '¥'+m.amount.toLocaleString() : '—'}</td>
+    </tr>`).join('');
+
+  main.innerHTML = `
+    <div style="padding:24px;max-width:600px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <button onclick="salesYear--;renderSalesReport()" style="background:white;border:1px solid var(--border);border-radius:6px;padding:4px 12px;cursor:pointer;font-size:0.9rem">◀</button>
+        <div style="font-size:1.1rem;font-weight:700;color:var(--brown)">${salesYear}年 売上管理</div>
+        <button onclick="salesYear++;renderSalesReport()" style="background:white;border:1px solid var(--border);border-radius:6px;padding:4px 12px;cursor:pointer;font-size:0.9rem">▶</button>
+      </div>
+
+      <!-- 年間合計 -->
+      <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);padding:20px 24px;margin-bottom:20px;border-left:4px solid var(--green)">
+        <div style="font-size:0.82rem;color:var(--gray);margin-bottom:6px">📋 ${salesYear}年 年間売上合計</div>
+        <div style="font-size:2rem;font-weight:700;color:var(--brown)">¥${totalAmount.toLocaleString()}</div>
+        <div style="font-size:0.82rem;color:var(--gray);margin-top:4px">合計 ${totalCount}件</div>
+        <div style="font-size:0.75rem;color:#aaa;margin-top:8px">※ 確定申告の「売上金額」欄に入力する数字です</div>
+      </div>
+
+      <!-- 月別内訳 -->
+      <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px">
+        <div style="padding:14px 18px;font-size:0.9rem;font-weight:700;color:var(--brown);border-bottom:1px solid var(--border)">月別内訳</div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="background:var(--green-light);font-size:0.8rem;color:var(--gray)">
+              <th style="padding:8px 18px;text-align:left">月</th>
+              <th style="padding:8px 18px;text-align:right">件数</th>
+              <th style="padding:8px 18px;text-align:right">売上金額</th>
+            </tr>
+          </thead>
+          <tbody style="font-size:0.88rem">
+            ${rows}
+            <tr style="border-top:2px solid var(--border);font-weight:700;background:#fafafa">
+              <td style="padding:10px 18px">合計</td>
+              <td style="padding:10px 18px;text-align:right">${totalCount}件</td>
+              <td style="padding:10px 18px;text-align:right;color:var(--brown)">¥${totalAmount.toLocaleString()}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- CSVダウンロード -->
+      <button onclick="exportSalesCSV(${salesYear})"
+        style="background:white;border:1px solid var(--green-mid);color:var(--green);border-radius:8px;padding:8px 18px;font-size:0.85rem;font-weight:600;cursor:pointer">
+        💾 CSVでダウンロード
+      </button>
+    </div>`;
+}
+
+function exportSalesCSV(year) {
+  const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  const monthly = Array.from({length:12}, (_,i) => ({ month: i+1, count: 0, amount: 0 }));
+  customers.forEach(c => {
+    (c.history||[]).forEach(h => {
+      if (!h.date || !h.amount) return;
+      if (parseInt(h.date.slice(0,4)) !== year) return;
+      const month = parseInt(h.date.slice(5,7));
+      monthly[month-1].count++;
+      monthly[month-1].amount += parseInt(h.amount) || 0;
+    });
+  });
+  const totalAmount = monthly.reduce((s,m) => s + m.amount, 0);
+  const totalCount  = monthly.reduce((s,m) => s + m.count, 0);
+
+  let csv = '﻿月,件数,売上金額\n';
+  monthly.forEach(m => { csv += `${months[m.month-1]},${m.count},${m.amount}\n`; });
+  csv += `合計,${totalCount},${totalAmount}\n`;
+
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `売上管理_${year}年.csv`;
+  a.click();
 }
 
 // ===== 発送済みチェック =====
