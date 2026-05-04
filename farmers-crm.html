@@ -871,8 +871,8 @@ function renderSalesReport() {
   const rows = monthly.map(m => `
     <tr style="${m.amount > 0 ? '' : 'color:#ccc'}">
       <td style="font-weight:600">${months[m.month-1]}</td>
-      <td style="text-align:right">${m.count > 0 ? m.count+'件' : '—'}</td>
-      <td style="text-align:right;font-weight:${m.amount>0?'600':'400'}">${m.amount > 0 ? '¥'+m.amount.toLocaleString() : '—'}</td>
+      <td style="text-align:right">${m.count > 0 ? maskCount(m.count) : '—'}</td>
+      <td style="text-align:right;font-weight:${m.amount>0?'600':'400'}">${m.amount > 0 ? maskAmount(m.amount) : '—'}</td>
     </tr>`).join('');
 
   main.innerHTML = `
@@ -886,8 +886,8 @@ function renderSalesReport() {
       <!-- 年間合計 -->
       <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);padding:20px 24px;margin-bottom:20px;border-left:4px solid var(--green)">
         <div style="font-size:0.82rem;color:var(--gray);margin-bottom:6px">📋 ${salesYear}年 年間売上合計</div>
-        <div style="font-size:2rem;font-weight:700;color:var(--brown)">¥${totalAmount.toLocaleString()}</div>
-        <div style="font-size:0.82rem;color:var(--gray);margin-top:4px">合計 ${totalCount}件</div>
+        <div style="font-size:2rem;font-weight:700;color:var(--brown)">${maskAmount(totalAmount)}</div>
+        <div style="font-size:0.82rem;color:var(--gray);margin-top:4px">合計 ${maskCount(totalCount)}</div>
         <div style="font-size:0.75rem;color:#aaa;margin-top:8px">※ 確定申告の「売上金額」欄に入力する数字です</div>
       </div>
 
@@ -906,8 +906,8 @@ function renderSalesReport() {
             ${rows}
             <tr style="border-top:2px solid var(--border);font-weight:700;background:#fafafa">
               <td style="padding:10px 18px">合計</td>
-              <td style="padding:10px 18px;text-align:right">${totalCount}件</td>
-              <td style="padding:10px 18px;text-align:right;color:var(--brown)">¥${totalAmount.toLocaleString()}</td>
+              <td style="padding:10px 18px;text-align:right">${maskCount(totalCount)}</td>
+              <td style="padding:10px 18px;text-align:right;color:var(--brown)">${maskAmount(totalAmount)}</td>
             </tr>
           </tbody>
         </table>
@@ -970,8 +970,8 @@ function renderAnalytics() {
     .map(([p, s]) => `
       <tr>
         <td style="padding:8px 14px">${escHtml(p)}</td>
-        <td style="padding:8px 14px;text-align:right">${s.count}件</td>
-        <td style="padding:8px 14px;text-align:right;font-weight:600">¥${s.amount.toLocaleString()}</td>
+        <td style="padding:8px 14px;text-align:right">${maskCount(s.count)}</td>
+        <td style="padding:8px 14px;text-align:right;font-weight:600">${maskAmount(s.amount)}</td>
       </tr>`).join('');
 
   // === 銘柄別集計（豆の使用回数）===
@@ -992,7 +992,7 @@ function renderAnalytics() {
     .map(([b, n], i) => `
       <tr>
         <td style="padding:8px 14px">${i===0?'🥇 ':i===1?'🥈 ':i===2?'🥉 ':'　 '}${escHtml(b)}</td>
-        <td style="padding:8px 14px;text-align:right;font-weight:600">${n}回</td>
+        <td style="padding:8px 14px;text-align:right;font-weight:600">${maskCount(n,'回')}</td>
       </tr>`).join('');
 
   // === リピート予測 ===
@@ -1026,18 +1026,26 @@ function renderAnalytics() {
   predictions.sort((a,b) => a.predDate.localeCompare(b.predDate));
 
   const predictionRows = predictions.slice(0, 15).map(p => {
+    const c = p.customer;
     const diff = Math.round((new Date(p.predDate) - new Date(today)) / 86400000);
     const status = diff < 0 ? `<span style="color:#c62828">${Math.abs(diff)}日経過</span>`
                 : diff === 0 ? `<span style="color:#e65100;font-weight:700">本日</span>`
                 : diff <= 7  ? `<span style="color:var(--green);font-weight:700">${diff}日後</span>`
                 : `<span style="color:#888">${diff}日後</span>`;
+    const initial = escHtml((c.name||'?').charAt(0));
+    const avatar = c.photoUrl
+      ? `<span class="ship-avatar"><img src="${escHtml(c.photoUrl)}" alt="${initial}" onerror="var p=this.parentElement;p.innerHTML='${initial}';p.style.fontSize='0.7rem';p.style.color='var(--green)';p.style.fontWeight='700'"></span>`
+      : `<span class="ship-avatar">${leafIcon(14)}</span>`;
+    const nameDisplay = c.libeName
+      ? `<span style="display:inline-flex;align-items:center;gap:6px">${avatar}<span>${displayLibeName(c)}</span></span><br><span style="font-size:0.72rem;color:#aaa;margin-left:28px">${maskedName(c)}</span>`
+      : `<span style="display:inline-flex;align-items:center;gap:6px">${avatar}<span>${maskedName(c)}</span></span>`;
     return `
       <tr>
-        <td style="padding:8px 14px">${escHtml(displayLibeName(p.customer) || maskedName(p.customer))}</td>
+        <td style="padding:8px 14px">${nameDisplay}</td>
         <td style="padding:8px 14px;text-align:right;font-size:0.82rem">${formatDate(p.lastDate)}</td>
         <td style="padding:8px 14px;text-align:right;font-size:0.82rem">${p.avgInterval}日</td>
         <td style="padding:8px 14px;text-align:right;font-size:0.82rem">${formatDate(p.predDate)}<br>${status}</td>
-        <td style="padding:8px 14px;text-align:right">¥${p.avgAmount.toLocaleString()}</td>
+        <td style="padding:8px 14px;text-align:right">${maskAmount(p.avgAmount)}</td>
       </tr>`;
   }).join('');
 
@@ -1070,9 +1078,9 @@ function renderAnalytics() {
   const forecastRows = months.map(m => `
     <tr>
       <td style="padding:8px 14px;font-weight:600">${m.year}年${m.month}月</td>
-      <td style="padding:8px 14px;text-align:right;font-size:0.82rem;color:var(--green)">¥${m.confirmed.toLocaleString()}</td>
-      <td style="padding:8px 14px;text-align:right;font-size:0.82rem;color:#888">+¥${m.predicted.toLocaleString()}</td>
-      <td style="padding:8px 14px;text-align:right;font-weight:700;color:var(--brown)">¥${(m.confirmed+m.predicted).toLocaleString()}</td>
+      <td style="padding:8px 14px;text-align:right;font-size:0.82rem;color:var(--green)">${maskAmount(m.confirmed)}</td>
+      <td style="padding:8px 14px;text-align:right;font-size:0.82rem;color:#888">${demoMode ? '+¥■■■■' : '+¥'+m.predicted.toLocaleString()}</td>
+      <td style="padding:8px 14px;text-align:right;font-weight:700;color:var(--brown)">${maskAmount(m.confirmed+m.predicted)}</td>
     </tr>`).join('');
 
   main.innerHTML = `
@@ -1809,6 +1817,9 @@ function demoMask(val, placeholder) {
   if (demoMode && val) return placeholder || '●●●';
   return val ? escHtml(val) : '';
 }
+// デモモード用: 件数・金額のマスク
+function maskAmount(n) { return demoMode ? '¥■■■■' : '¥' + (n||0).toLocaleString(); }
+function maskCount(n, suffix='件') { return demoMode ? '■■' : (n||0) + suffix; }
 function toggleDemoMode() {
   demoMode = !demoMode;
   document.body.classList.toggle('demo-mode', demoMode);
