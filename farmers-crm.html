@@ -1117,6 +1117,64 @@ function renderAnalytics() {
         </table>
       </div>
 
+      <!-- 一見さん vs リピーター 月別比率 -->
+      <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px">
+        <div style="padding:14px 18px;font-weight:700;color:var(--brown);border-bottom:1px solid var(--border)">👥 一見さん vs リピーター（${analyticsYear}年 月別）</div>
+        <div style="padding:8px 18px;font-size:0.75rem;color:#aaa;border-bottom:1px solid var(--border)">※ 一見さん = その月が初回購入のお客様。リピーター = それ以前に購入歴のあるお客様</div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.88rem">
+          <thead><tr style="background:var(--green-light);font-size:0.8rem;color:var(--gray)">
+            <th style="padding:8px 14px;text-align:left">月</th>
+            <th style="padding:8px 14px;text-align:right">一見さん</th>
+            <th style="padding:8px 14px;text-align:right">リピーター</th>
+            <th style="padding:8px 14px;text-align:right">リピーター率</th>
+          </tr></thead>
+          <tbody>${(() => {
+            // 各お客様の初回購入日を計算
+            const firstOrderDate = new Map();
+            customers.forEach(c => {
+              const dates = (c.history||[]).map(h=>h.date).filter(Boolean).sort();
+              if (dates.length) firstOrderDate.set(c.id, dates[0]);
+            });
+            // 月別に集計
+            const monthly = Array.from({length:12}, ()=>({newC:0, repeatC:0}));
+            customers.forEach(c => {
+              const first = firstOrderDate.get(c.id);
+              if (!first) return;
+              (c.history||[]).forEach(h => {
+                if (!h.date) return;
+                if (parseInt(h.date.slice(0,4)) !== analyticsYear) return;
+                const m = parseInt(h.date.slice(5,7)) - 1;
+                if (h.date === first) monthly[m].newC++;
+                else monthly[m].repeatC++;
+              });
+            });
+            const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+            const rows = monthly.map((d, i) => {
+              const total = d.newC + d.repeatC;
+              if (total === 0) return `<tr style="color:#ccc"><td style="padding:8px 14px;font-weight:600">${months[i]}</td><td style="padding:8px 14px;text-align:right">—</td><td style="padding:8px 14px;text-align:right">—</td><td style="padding:8px 14px;text-align:right">—</td></tr>`;
+              const ratio = (d.repeatC / total * 100).toFixed(0);
+              const ratioColor = ratio >= 70 ? 'var(--green)' : ratio >= 40 ? '#e65100' : '#c62828';
+              return `<tr>
+                <td style="padding:8px 14px;font-weight:600">${months[i]}</td>
+                <td style="padding:8px 14px;text-align:right">${maskCount(d.newC)}</td>
+                <td style="padding:8px 14px;text-align:right">${maskCount(d.repeatC)}</td>
+                <td style="padding:8px 14px;text-align:right;font-weight:700;color:${ratioColor}">${ratio}%</td>
+              </tr>`;
+            }).join('');
+            const totalNew = monthly.reduce((s,d)=>s+d.newC,0);
+            const totalRepeat = monthly.reduce((s,d)=>s+d.repeatC,0);
+            const totalAll = totalNew + totalRepeat;
+            const totalRatio = totalAll ? (totalRepeat / totalAll * 100).toFixed(0) : 0;
+            return rows + `<tr style="border-top:2px solid var(--border);font-weight:700;background:#fafafa">
+              <td style="padding:10px 14px">合計</td>
+              <td style="padding:10px 14px;text-align:right">${maskCount(totalNew)}</td>
+              <td style="padding:10px 14px;text-align:right">${maskCount(totalRepeat)}</td>
+              <td style="padding:10px 14px;text-align:right;color:var(--brown)">${totalRatio}%</td>
+            </tr>`;
+          })()}</tbody>
+        </table>
+      </div>
+
       <!-- リピート予測 -->
       <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px">
         <div style="padding:14px 18px;font-weight:700;color:var(--brown);border-bottom:1px solid var(--border)">🔁 リピート予測（次回予想日が近い順 上位15名）</div>
@@ -1136,7 +1194,7 @@ function renderAnalytics() {
       <!-- 月別予測 -->
       <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px">
         <div style="padding:14px 18px;font-weight:700;color:var(--brown);border-bottom:1px solid var(--border)">📅 今後3ヶ月の売上予測</div>
-        <div style="padding:8px 18px;font-size:0.75rem;color:#aaa;border-bottom:1px solid var(--border)">※ 確定 = すでに記録された注文 / 予測 = リピート予測の合計</div>
+        <div style="padding:8px 18px;font-size:0.75rem;color:#aaa;border-bottom:1px solid var(--border)">※ 確定 = すでに記録された注文 / 予測 = リピート予測の合計（4回以上購入のお客様のみ）</div>
         <table style="width:100%;border-collapse:collapse;font-size:0.88rem">
           <thead><tr style="background:var(--green-light);font-size:0.8rem;color:var(--gray)">
             <th style="padding:8px 14px;text-align:left">月</th>
