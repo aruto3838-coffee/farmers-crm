@@ -745,11 +745,10 @@ function switchTab(tab) {
 // ===== 発送管理 =====
 function renderShipmentList() {
   const today = todayLocal();
-  const threeDaysAgo = new Date(new Date(today).getTime() - 3 * 86400000).toISOString().slice(0, 10);
   const items = [];
   customers.forEach(c => {
     (c.history||[]).forEach(h => {
-      if (h.shipDate && h.shipDate >= threeDaysAgo) {
+      if (h.shipDate && !h.shipped) {
         items.push({ c, h });
       }
     });
@@ -785,13 +784,14 @@ function renderShipmentList() {
     const bonusHtml = h.bonusBean
       ? `<div style="font-size:0.82rem;color:var(--brown)">🎁 ${escHtml(h.bonusBean)}</div>${h.bonusBeanNote ? `<div style="font-size:0.75rem;color:#aaa;margin-top:2px">${escHtml(h.bonusBeanNote)}</div>` : ''}`
       : '<span style="color:#ccc">—</span>';
-    return `<tr class="${diff===0?'today':''}" onclick="switchTab('crm');selectCustomer('${c.id}')">
-      <td><span class="ship-badge ${badgeCls}">${badgeText}</span><br><span style="font-size:0.82rem;color:#555">${formatDate(h.shipDate)}</span></td>
-      <td>${name}</td>
-      <td><div style="color:var(--brown);font-weight:600;margin-bottom:4px">${escHtml(h.product)}</div>${grind}</td>
-      <td>${beanHtml}</td>
-      <td>${bonusHtml}</td>
-      <td style="font-size:0.82rem;color:#666">${roast}</td>
+    return `<tr class="${diff===0?'today':''}" data-cid="${c.id}" data-hid="${h.id}">
+      <td onclick="event.stopPropagation()" style="text-align:center"><input type="checkbox" class="ship-check" style="cursor:pointer;width:16px;height:16px"></td>
+      <td onclick="switchTab('crm');selectCustomer('${c.id}')"><span class="ship-badge ${badgeCls}">${badgeText}</span><br><span style="font-size:0.82rem;color:#555">${formatDate(h.shipDate)}</span></td>
+      <td onclick="switchTab('crm');selectCustomer('${c.id}')">${name}</td>
+      <td onclick="switchTab('crm');selectCustomer('${c.id}')"><div style="color:var(--brown);font-weight:600;margin-bottom:4px">${escHtml(h.product)}</div>${grind}</td>
+      <td onclick="switchTab('crm');selectCustomer('${c.id}')">${beanHtml}</td>
+      <td onclick="switchTab('crm');selectCustomer('${c.id}')">${bonusHtml}</td>
+      <td onclick="switchTab('crm');selectCustomer('${c.id}')" style="font-size:0.82rem;color:#666">${roast}</td>
     </tr>`;
   }).join('');
 
@@ -817,10 +817,15 @@ function renderShipmentList() {
         <button onclick="toggleRealName();renderShipmentList()" id="btnEyeShip"
           style="background:white;border:1px solid ${showRealName?'var(--green-mid)':'var(--border)'};border-radius:50%;width:30px;height:30px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:${showRealName?'var(--green)':'#aaa'};padding:0"
           title="${showRealName?'本名を非表示にする':'本名を表示する'}">${eyeIconHtml(showRealName)}</button>
+        <button onclick="markSelectedAsShipped()"
+          style="background:var(--green);color:white;border:none;border-radius:8px;padding:6px 16px;font-size:0.85rem;font-weight:600;cursor:pointer">
+          ✅ 発送済みにする
+        </button>
       </div>
       <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden">
         <table class="ship-table">
           <thead><tr>
+            <th style="width:36px"><input type="checkbox" id="checkAll" onchange="toggleCheckAll(this)" style="cursor:pointer;width:16px;height:16px"></th>
             <th>発送予定日</th>
             <th>お名前</th>
             <th>商品・挽き方</th>
@@ -832,6 +837,37 @@ function renderShipmentList() {
         </table>
       </div>
     </div>`;
+}
+
+// ===== 発送済みチェック =====
+function toggleCheckAll(master) {
+  document.querySelectorAll('.ship-check').forEach(cb => cb.checked = master.checked);
+}
+
+async function markSelectedAsShipped() {
+  const checked = document.querySelectorAll('.ship-check:checked');
+  if (!checked.length) { showToast('チェックされた項目がありません'); return; }
+  if (!confirm(`${checked.length}件を発送済みにしますか？`)) return;
+
+  const updates = {};
+  checked.forEach(cb => {
+    const row = cb.closest('tr');
+    const cid = row.dataset.cid;
+    const hid = row.dataset.hid;
+    if (!updates[cid]) updates[cid] = [];
+    updates[cid].push(hid);
+  });
+
+  for (const [cid, hids] of Object.entries(updates)) {
+    const c = getCustomer(cid);
+    hids.forEach(hid => {
+      const h = c.history.find(x => x.id === hid);
+      if (h) h.shipped = true;
+    });
+    await dbSave(c);
+  }
+  showToast(`✅ ${checked.length}件を発送済みにしました`);
+  renderShipmentList();
 }
 
 // ===== クリックポストCSV生成 =====
