@@ -940,8 +940,10 @@ async function handleSalesCSVImport(input) {
         if (row.length <= amountCol) continue;
         const dateStr = row[dateCol] || '';
         const statusVal = statusCol >= 0 ? (row[statusCol] || '') : '';
-        const count = countCol >= 0 ? (parseInt(row[countCol]) || 1) : 1;
-        const amount = parseInt(row[amountCol]) || 0;
+        // ファーマーズマーケットの金額には "2,200" のようにカンマが入っているため除去してから数値化
+        const stripComma = (v) => (v || '').replace(/,/g, '').trim();
+        const count = countCol >= 0 ? (parseInt(stripComma(row[countCol])) || 1) : 1;
+        const amount = parseInt(stripComma(row[amountCol])) || 0;
 
         // キャンセル系を除外
         if (statusVal.includes('キャンセル')) { skipped++; continue; }
