@@ -405,7 +405,7 @@
     </div>
 
     <div class="form-row">
-      <div class="form-group">
+      <div class="form-group" style="flex:2">
         <label>商品名 <span style="color:red">*</span></label>
         <select id="hProduct" onchange="onProductChange()">
           <option value="">選択してください</option>
@@ -415,7 +415,11 @@
           <option>【4袋入り】ドリップバッグ</option>
         </select>
       </div>
-      <div class="form-group">
+      <div class="form-group" style="flex:0.6">
+        <label>個数</label>
+        <input type="number" id="hQuantity" value="1" min="1" oninput="onProductChange()">
+      </div>
+      <div class="form-group" style="flex:1">
         <label>金額（円）</label>
         <input type="number" id="hAmount" placeholder="3000">
       </div>
@@ -669,6 +673,7 @@ auth.onAuthStateChanged(user => {
     if (!_firestoreListenerStarted) {
       _firestoreListenerStarted = true;
       startFirestoreListener();
+      loadSalesImports();
     }
   } else {
     // 未ログイン
@@ -847,26 +852,134 @@ function renderShipmentList() {
 
 // ===== 売上管理 =====
 let salesYear = 2026;
+let salesMode = 'speed'; // 'speed'=顧客管理から（速報値）, 'final'=CSV取込（確定値）
+let importedSalesData = null; // Firestoreから読み込む取込データ
+
+// 売上取込データの読み込み
+async function loadSalesImports() {
+  try {
+    const doc = await db.collection('salesImports').doc('data').get();
+    if (doc.exists) importedSalesData = doc.data();
+  } catch (e) { console.error('Sales imports load error:', e); }
+}
+
+// 売上取込データの保存
+async function saveSalesImports(data) {
+  await db.collection('salesImports').doc('data').set(data);
+}
+
+// CSVファイルから売上データを取り込む
+async function handleSalesCSVImport(input) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+
+  const status = document.getElementById('salesImportStatus');
+  if (status) status.textContent = '処理中...';
+
+  try {
+    let allOrders = [];
+    let importedFiles = [];
+
+    for (const file of files) {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let text;
+      if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+        text = new TextDecoder('utf-8').decode(buffer);
+      } else {
+        try {
+          text = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+        } catch (e) {
+          text = new TextDecoder('shift-jis').decode(buffer);
+        }
+      }
+      const rows = parseCSVRows(text);
+      if (rows.length < 2) continue;
+
+      let processed = 0, skipped = 0;
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (row.length < 15) continue;
+        const dateStr = row[0];
+        const statusVal = row[5] || '';
+        const count = parseInt(row[12]) || 1;
+        const amount = parseInt(row[14]) || 0;
+
+        // キャンセル系を除外
+        if (statusVal.includes('キャンセル')) { skipped++; continue; }
+
+        const dateMatch = dateStr.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})/);
+        if (!dateMatch) continue;
+        const date = `${dateMatch[1]}-${dateMatch[2].padStart(2,'0')}-${dateMatch[3].padStart(2,'0')}`;
+
+        allOrders.push({ date, amount, count });
+        processed++;
+      }
+
+      importedFiles.push({
+        name: file.name,
+        importedAt: new Date().toISOString(),
+        orderCount: processed,
+        skippedCount: skipped
+      });
+    }
+
+    importedSalesData = {
+      orders: allOrders,
+      importedFiles,
+      lastUpdated: new Date().toISOString()
+    };
+    await saveSalesImports(importedSalesData);
+    showToast(`✅ ${allOrders.length}件を取り込みました（キャンセル除く）`);
+    salesMode = 'final';
+    renderSalesReport();
+  } catch (err) {
+    console.error(err);
+    showToast('❌ 取り込みに失敗しました');
+    if (status) status.textContent = '失敗しました';
+  }
+}
 
 function renderSalesReport() {
   const main = document.getElementById('main');
   const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
-  // 月ごとに集計
+  // 月ごとに集計（モードによってデータソースが変わる）
   const monthly = Array.from({length:12}, (_,i) => ({ month: i+1, count: 0, amount: 0 }));
-  customers.forEach(c => {
-    (c.history||[]).forEach(h => {
-      if (!h.date || !h.amount) return;
-      const year = parseInt(h.date.slice(0,4));
-      const month = parseInt(h.date.slice(5,7));
+
+  if (salesMode === 'final' && importedSalesData && importedSalesData.orders) {
+    // 確定値: CSV取込データから集計
+    importedSalesData.orders.forEach(o => {
+      if (!o.date) return;
+      const year = parseInt(o.date.slice(0,4));
+      const month = parseInt(o.date.slice(5,7));
       if (year !== salesYear) return;
       monthly[month-1].count++;
-      monthly[month-1].amount += parseInt(h.amount) || 0;
+      monthly[month-1].amount += parseInt(o.amount) || 0;
     });
-  });
+  } else {
+    // 速報値: 顧客履歴から集計
+    customers.forEach(c => {
+      (c.history||[]).forEach(h => {
+        if (!h.date || !h.amount) return;
+        const year = parseInt(h.date.slice(0,4));
+        const month = parseInt(h.date.slice(5,7));
+        if (year !== salesYear) return;
+        monthly[month-1].count++;
+        monthly[month-1].amount += parseInt(h.amount) || 0;
+      });
+    });
+  }
 
   const totalAmount = monthly.reduce((s,m) => s + m.amount, 0);
   const totalCount  = monthly.reduce((s,m) => s + m.count, 0);
+
+  const isFinal = salesMode === 'final';
+  const hasImported = !!(importedSalesData && importedSalesData.orders && importedSalesData.orders.length);
+  const lastUpdated = hasImported ? importedSalesData.lastUpdated.slice(0, 10) : null;
+  const importedFileNames = hasImported && importedSalesData.importedFiles
+    ? importedSalesData.importedFiles.map(f => f.name).join(', ')
+    : '';
 
   const rows = monthly.map(m => `
     <tr style="${m.amount > 0 ? '' : 'color:#ccc'}">
@@ -883,12 +996,41 @@ function renderSalesReport() {
         <button onclick="salesYear++;renderSalesReport()" style="background:white;border:1px solid var(--border);border-radius:6px;padding:4px 12px;cursor:pointer;font-size:0.9rem">▶</button>
       </div>
 
+      <!-- モード切替 -->
+      <div style="display:flex;gap:0;margin-bottom:16px;background:var(--green-light);border-radius:8px;padding:3px">
+        <button onclick="salesMode='speed';renderSalesReport()"
+          style="flex:1;padding:8px 12px;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:600;${!isFinal?'background:white;color:var(--brown);box-shadow:0 1px 3px rgba(0,0,0,0.1)':'background:transparent;color:var(--gray)'}">
+          📝 速報値（顧客管理から）
+        </button>
+        <button onclick="salesMode='final';renderSalesReport()" ${!hasImported?'disabled':''}
+          style="flex:1;padding:8px 12px;border:none;border-radius:6px;cursor:${hasImported?'pointer':'not-allowed'};font-size:0.85rem;font-weight:600;opacity:${hasImported?'1':'0.5'};${isFinal?'background:white;color:var(--brown);box-shadow:0 1px 3px rgba(0,0,0,0.1)':'background:transparent;color:var(--gray)'}">
+          ✅ 確定値（CSV取込）
+        </button>
+      </div>
+
+      <!-- CSV取込 -->
+      <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 18px;margin-bottom:20px;border-left:4px solid #4a90d9">
+        <div style="font-size:0.9rem;font-weight:700;color:#4a90d9;margin-bottom:8px">📥 注文管理CSVを取り込む</div>
+        <div style="font-size:0.78rem;color:var(--gray);margin-bottom:10px">リベシティ市場・ファーマーズマーケットの注文管理CSVをまとめて選択できます。キャンセルは自動で除外されます。</div>
+        <label style="display:inline-flex;align-items:center;gap:8px;background:var(--green-light);border:1px solid var(--green-mid);border-radius:8px;padding:8px 14px;cursor:pointer;font-size:0.85rem;color:var(--green);font-weight:600">
+          📂 CSVを選択（複数可）
+          <input type="file" accept=".csv" multiple onchange="handleSalesCSVImport(this)" style="display:none">
+        </label>
+        ${hasImported ? `
+          <div style="margin-top:10px;font-size:0.75rem;color:var(--gray)">
+            <div>最終更新: ${lastUpdated}</div>
+            <div style="margin-top:2px">取込ファイル: ${escHtml(importedFileNames)}</div>
+            <div style="margin-top:2px">取込件数: ${importedSalesData.orders.length}件</div>
+          </div>
+        ` : `<div id="salesImportStatus" style="margin-top:8px;font-size:0.78rem;color:var(--gray)">まだ取り込みされていません</div>`}
+      </div>
+
       <!-- 年間合計 -->
-      <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);padding:20px 24px;margin-bottom:20px;border-left:4px solid var(--green)">
-        <div style="font-size:0.82rem;color:var(--gray);margin-bottom:6px">📋 ${salesYear}年 年間売上合計</div>
+      <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);padding:20px 24px;margin-bottom:20px;border-left:4px solid ${isFinal?'var(--green)':'#e0c068'}">
+        <div style="font-size:0.82rem;color:var(--gray);margin-bottom:6px">📋 ${salesYear}年 年間売上合計 <span style="font-size:0.7rem;background:${isFinal?'var(--green)':'#e0c068'};color:white;padding:2px 8px;border-radius:10px;margin-left:6px">${isFinal?'確定':'速報'}</span></div>
         <div style="font-size:2rem;font-weight:700;color:var(--brown)">${maskAmount(totalAmount)}</div>
         <div style="font-size:0.82rem;color:var(--gray);margin-top:4px">合計 ${maskCount(totalCount)}</div>
-        <div style="font-size:0.75rem;color:#aaa;margin-top:8px">※ 確定申告の「売上金額」欄に入力する数字です</div>
+        <div style="font-size:0.75rem;color:#aaa;margin-top:8px">※ ${isFinal?'確定申告の「売上金額」欄に入力する数字です':'記録漏れ・複数個オーダーの記入ミスを含む可能性があります。確定申告にはCSV取込（確定値）をご利用ください'}</div>
       </div>
 
       <!-- 月別内訳 -->
@@ -2145,7 +2287,7 @@ function renderDetail() {
                 ${h.roastDate?`<span class="history-date-badge" style="background:#fff8e1;color:#e65100">🔥 焙煎 ${formatDate(h.roastDate)}</span>`:''}
               </div>
               <div class="history-top-row2">
-                <span class="history-product">🛍 ${escHtml(h.product)}</span>
+                <span class="history-product">🛍 ${escHtml(h.product)}${h.quantity && h.quantity > 1 ? ` × ${h.quantity}` : ''}</span>
                 ${h.amount?`<span class="history-amount">¥${parseInt(h.amount).toLocaleString()}</span>`:''}
                 <div class="history-actions">
                   <button class="btn-icon" onclick="openHistoryModal('${h.id}')">✏️</button>
@@ -2375,16 +2517,20 @@ function onProductChange() {
   document.getElementById('secSingle').style.display = isSingle ? '' : 'none';
   document.getElementById('secCommon').style.display = hasProduct ? '' : 'none';
 
-  // 金額の自動入力:
-  //   - 空欄 → 既定価格を入れる
-  //   - 既存の金額が他商品の既定価格と一致 → 商品切替と判断して上書き
+  // 金額の自動入力（個数 × 単価）:
+  //   - 空欄 → 既定価格 × 個数を入れる
+  //   - 既存の金額が「いずれかの商品の単価 × 任意の整数」に一致 → 商品/個数切替と判断して上書き
   //   - 手入力された任意の金額 → 上書きしない
   const priceInput = document.getElementById('hAmount');
+  const qtyInput = document.getElementById('hQuantity');
+  const qty = Math.max(1, parseInt(qtyInput?.value) || 1);
   if (priceInput && PRODUCT_PRICES[p] != null) {
-    const current = (priceInput.value || '').trim();
-    const knownPrices = Object.values(PRODUCT_PRICES).map(String);
-    if (current === '' || knownPrices.includes(current)) {
-      priceInput.value = PRODUCT_PRICES[p];
+    const current = parseInt((priceInput.value || '').trim()) || 0;
+    const allPrices = Object.values(PRODUCT_PRICES);
+    // 既存値が「単価×整数倍」にちょうど一致するなら自動更新と判断
+    const isAutoCalculated = current === 0 || allPrices.some(price => current > 0 && current % price === 0);
+    if (isAutoCalculated) {
+      priceInput.value = PRODUCT_PRICES[p] * qty;
     }
   }
 }
@@ -2396,7 +2542,7 @@ function openHistoryModal(historyId) {
   if (historyId) {
     const h = getCustomer(selectedCustomerId).history.find(x=>x.id===historyId);
     setVal('hDate', h.date); setVal('hShipDate', h.shipDate); setVal('hRoastDate', h.roastDate);
-    setVal('hAmount', h.amount); setVal('hProduct', h.product); setVal('hBeanGrind', h.beanGrind);
+    setVal('hAmount', h.amount); setVal('hProduct', h.product); setVal('hQuantity', h.quantity || 1); setVal('hBeanGrind', h.beanGrind);
     setBeanValue('1', h.bean1||''); setVal('hBean1Note', h.bean1Note);
     setBeanValue('2', h.bean2||''); setVal('hBean2Note', h.bean2Note);
     setBeanValue('3', h.bean3||''); setVal('hBean3Note', h.bean3Note||'');
@@ -2416,6 +2562,7 @@ function openHistoryModal(historyId) {
     setVal('hDate', todayLocal());
     ['hShipDate','hRoastDate','hAmount','hBeanGrind','hBean1Note','hBean2Note','hBean3Note','hBean4Note','hBean5Note','hBean6Note','hBonusBeanNote','hSeal','hMessage','hNote']
       .forEach(i=>setVal(i,''));
+    setVal('hQuantity', 1);
     setBeanValue('1',''); setBeanValue('2',''); setBeanValue('3',''); setBeanValue('4',''); setBeanValue('5',''); setBeanValue('6',''); setBeanValue('Bonus','');
     document.getElementById('sec2ndSet').style.display = 'none';
     document.getElementById('btn2ndSet').textContent = '＋ 2個目の銘柄を追加';
@@ -2516,6 +2663,7 @@ async function saveHistory() {
     shipDate: getVal('hShipDate'),
     roastDate: getVal('hRoastDate'),
     amount: getVal('hAmount'),
+    quantity: Math.max(1, parseInt(getVal('hQuantity')) || 1),
     product,
     beanGrind: isSingle ? getVal('hBeanGrind') : '',
     bean1: isSingle ? getBeanValue('1') : '',
