@@ -293,12 +293,21 @@
   <button class="tab-btn" id="tabAnalytics" onclick="switchTab('analytics')">📈 分析</button>
   <button class="tab-btn" onclick="exportBackupCSV()" title="顧客データをCSVバックアップ"
     style="background:none;border:1px solid rgba(255,255,255,0.3);color:white">💾 バックアップ</button>
+  <label class="tab-btn" title="バックアップCSVから復元"
+    style="background:none;border:1px solid rgba(255,255,255,0.3);color:white;cursor:pointer">
+    📥 復元<input type="file" accept=".csv" onchange="restoreFromBackupCSV(this)" style="display:none">
+  </label>
   <button class="tab-btn" id="btnDemo" onclick="toggleDemoMode()" title="デモモード切替"
     style="background:none;border:1px solid rgba(255,255,255,0.3);color:white">🎭 デモ</button>
   <button class="tab-btn" id="btnLogout" onclick="logoutApp()" title="ログアウト"
     style="background:none;border:1px solid var(--border);color:#888">↪ ログアウト</button>
 </header>
 <div class="demo-banner" id="demoBanner">🎭 デモモード — 個人情報は非表示です（もう一度「🎭 デモ」を押すと解除）</div>
+<div id="backupReminder" style="display:none;padding:10px 16px;background:#fff3e0;color:#6d4c00;text-align:center;font-size:0.85rem;border-bottom:1px solid #ffcc80">
+  ⏰ <strong id="backupReminderText"></strong>
+  <button onclick="exportBackupCSV()" style="background:#e65100;color:white;border:none;border-radius:6px;padding:4px 12px;font-size:0.78rem;font-weight:700;cursor:pointer;margin-left:8px">今すぐバックアップ</button>
+  <button onclick="hideBackupReminder()" style="background:transparent;border:none;color:#888;cursor:pointer;font-size:0.78rem;margin-left:6px">あとで</button>
+</div>
 
 <div class="layout">
   <aside class="sidebar" id="sidebarPanel">
@@ -674,6 +683,7 @@ auth.onAuthStateChanged(user => {
       _firestoreListenerStarted = true;
       startFirestoreListener();
       loadSalesImports();
+      setTimeout(checkBackupReminder, 1500);
     }
   } else {
     // 未ログイン
@@ -1956,35 +1966,75 @@ function downloadClickpostCSV() {
 }
 
 // ===== 顧客データ バックアップCSVエクスポート =====
+// ===== バックアップ忘れ防止リマインダー =====
+function checkBackupReminder() {
+  const last = localStorage.getItem('lastBackupDate');
+  const dismissed = localStorage.getItem('backupReminderDismissedAt');
+  const today = todayLocal();
+
+  // 「あとで」を押した日付が今日なら表示しない
+  if (dismissed === today) return;
+
+  let daysSince = null;
+  if (last) {
+    daysSince = Math.round((new Date(today) - new Date(last)) / 86400000);
+    if (daysSince < 30) return; // 30日以内ならリマインドしない
+  }
+
+  const banner = document.getElementById('backupReminder');
+  const text = document.getElementById('backupReminderText');
+  if (!banner || !text) return;
+  text.textContent = last
+    ? `前回のバックアップから${daysSince}日が経過しました。月1回のバックアップをおすすめします`
+    : `まだバックアップが取られていません。大切なデータを守るためバックアップしましょう`;
+  banner.style.display = 'block';
+}
+
+function hideBackupReminder() {
+  const banner = document.getElementById('backupReminder');
+  if (banner) banner.style.display = 'none';
+  localStorage.setItem('backupReminderDismissedAt', todayLocal());
+}
+
+// バックアップCSVのヘッダー定義（復元時にも同じ順序で参照）
+const BACKUP_HEADERS = [
+  '顧客ID','リベネーム','本名','プロフィールURL','画像URL',
+  '電話番号','郵便番号','住所','メモ',
+  '豆の種類','挽き方','登録日',
+  '履歴ID','商品名','個数','金額','注文日','発送日','焙煎日','発送済み',
+  '挽き豆区分','銘柄1','銘柄1備考','銘柄2','銘柄2備考',
+  '銘柄3','銘柄3備考','銘柄4','銘柄4備考',
+  '銘柄5','銘柄5備考','銘柄6','銘柄6備考',
+  'おまけ銘柄','おまけ備考','シール','メッセージカード','備考'
+];
+
 function exportBackupCSV() {
   if (demoMode) { alert('デモモード中はバックアップできません'); return; }
   if (!customers.length) { alert('バックアップする顧客データがありません'); return; }
   const rows = [];
-  // ヘッダー行
-  rows.push([
-    '顧客ID', 'リベネーム', '本名', 'プロフィールURL', '画像URL',
-    '電話番号', '郵便番号', '住所', 'メモ',
-    '豆の種類', '挽き方', '登録日',
-    '履歴ID', '商品名', '挽き方(履歴)', '金額', '注文日', '発送日', '備考'
-  ].join(','));
+  rows.push(BACKUP_HEADERS.join(','));
+  const histColCount = BACKUP_HEADERS.length - 12;
   customers.forEach(c => {
     const hist = (c.history || []).slice().sort((a,b) => (b.date||'').localeCompare(a.date||''));
+    const customerCols = [
+      c.id, c.libeName||'', c.name||'', c.profileUrl||'', c.photoUrl||'',
+      c.phone||'', c.zip||'', c.address||'', c.memo||'',
+      c.beanType||'', c.grind||'', c.createdAt||''
+    ];
     if (hist.length === 0) {
-      // 履歴がない顧客は1行で出力
-      rows.push(csvRow([
-        c.id, c.libeName||'', c.name||'', c.profileUrl||'', c.photoUrl||'',
-        c.phone||'', c.zip||'', c.address||'', c.memo||'',
-        c.beanType||'', c.grind||'', c.createdAt||'',
-        '', '', '', '', '', '', ''
-      ]));
+      const empty = new Array(histColCount).fill('');
+      rows.push(csvRow([...customerCols, ...empty]));
     } else {
-      // 履歴ごとに1行
       hist.forEach(h => {
         rows.push(csvRow([
-          c.id, c.libeName||'', c.name||'', c.profileUrl||'', c.photoUrl||'',
-          c.phone||'', c.zip||'', c.address||'', c.memo||'',
-          c.beanType||'', c.grind||'', c.createdAt||'',
-          h.id||'', h.product||'', h.grind||'', h.amount||'', h.date||'', h.shipDate||'', h.note||''
+          ...customerCols,
+          h.id||'', h.product||'', h.quantity||1, h.amount||'', h.date||'', h.shipDate||'', h.roastDate||'', h.shipped?'1':'',
+          h.beanGrind||'',
+          h.bean1||'', h.bean1Note||'', h.bean2||'', h.bean2Note||'',
+          h.bean3||'', h.bean3Note||'', h.bean4||'', h.bean4Note||'',
+          h.bean5||'', h.bean5Note||'', h.bean6||'', h.bean6Note||'',
+          h.bonusBean||'', h.bonusBeanNote||'',
+          h.seal||'', h.message||'', h.note||''
         ]));
       });
     }
@@ -1999,8 +2049,130 @@ function exportBackupCSV() {
   a.download = 'backup_' + todayLocal() + '.csv';
   a.click();
   URL.revokeObjectURL(url);
+  // バックアップ実施日を記録（リマインダー用）
+  localStorage.setItem('lastBackupDate', todayLocal());
   showToast('💾 バックアップCSVをダウンロードしました（' + customers.length + '名分）');
+  hideBackupReminder();
 }
+// ===== バックアップCSVから復元 =====
+async function restoreFromBackupCSV(input) {
+  if (demoMode) { alert('デモモード中は復元できません'); input.value=''; return; }
+  const file = input.files[0];
+  input.value = '';
+  if (!file) return;
+
+  // 安全のため強い確認
+  const ok1 = confirm(
+    '⚠️ 復元を行うと、現在のデータはすべて置き換わります。\n\n' +
+    '続ける前に、現在のデータのバックアップを取ることをおすすめします。\n\n' +
+    '本当に復元しますか？'
+  );
+  if (!ok1) return;
+
+  try {
+    const buffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let text;
+    if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+      text = new TextDecoder('utf-8').decode(buffer);
+    } else {
+      try {
+        text = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+      } catch (e) {
+        text = new TextDecoder('shift-jis').decode(buffer);
+      }
+    }
+    const rows = parseCSVRows(text);
+    if (rows.length < 2) { alert('CSVにデータがありません'); return; }
+
+    const header = rows[0].map(s => (s||'').replace(/^﻿/, '').trim());
+    const idx = (name) => header.indexOf(name);
+
+    if (idx('顧客ID') < 0) { alert('バックアップCSVの形式が違うようです（顧客ID列がありません）'); return; }
+
+    // 顧客IDごとに集約
+    const customerMap = new Map();
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const cid = (r[idx('顧客ID')] || '').trim();
+      if (!cid) continue;
+
+      if (!customerMap.has(cid)) {
+        customerMap.set(cid, {
+          id: cid,
+          libeName: r[idx('リベネーム')] || '',
+          name: r[idx('本名')] || '',
+          profileUrl: r[idx('プロフィールURL')] || '',
+          photoUrl: r[idx('画像URL')] || '',
+          phone: r[idx('電話番号')] || '',
+          zip: r[idx('郵便番号')] || '',
+          address: r[idx('住所')] || '',
+          memo: r[idx('メモ')] || '',
+          beanType: r[idx('豆の種類')] || '',
+          grind: r[idx('挽き方')] || '',
+          createdAt: r[idx('登録日')] || '',
+          history: []
+        });
+      }
+      const c = customerMap.get(cid);
+
+      // 履歴行があれば追加
+      const hid = (idx('履歴ID') >= 0 && r[idx('履歴ID')]) ? r[idx('履歴ID')].trim() : '';
+      if (hid || (idx('商品名') >= 0 && r[idx('商品名')])) {
+        const get = (name) => idx(name) >= 0 ? (r[idx(name)] || '') : '';
+        c.history.push({
+          id: hid || generateId(),
+          product: get('商品名'),
+          quantity: parseInt(get('個数')) || 1,
+          amount: get('金額'),
+          date: get('注文日'),
+          shipDate: get('発送日'),
+          roastDate: get('焙煎日'),
+          shipped: get('発送済み') === '1' || get('発送済み') === 'true',
+          beanGrind: get('挽き豆区分'),
+          bean1: get('銘柄1'), bean1Note: get('銘柄1備考'),
+          bean2: get('銘柄2'), bean2Note: get('銘柄2備考'),
+          bean3: get('銘柄3'), bean3Note: get('銘柄3備考'),
+          bean4: get('銘柄4'), bean4Note: get('銘柄4備考'),
+          bean5: get('銘柄5'), bean5Note: get('銘柄5備考'),
+          bean6: get('銘柄6'), bean6Note: get('銘柄6備考'),
+          bonusBean: get('おまけ銘柄'), bonusBeanNote: get('おまけ備考'),
+          seal: get('シール'),
+          message: get('メッセージカード'),
+          note: get('備考')
+        });
+      }
+    }
+
+    const newCustomers = Array.from(customerMap.values());
+    const totalHistory = newCustomers.reduce((s,c) => s + c.history.length, 0);
+
+    const ok2 = confirm(
+      `📥 復元内容の確認\n\n` +
+      `顧客: ${newCustomers.length}名\n` +
+      `履歴: ${totalHistory}件\n\n` +
+      `この内容で現在のデータを置き換えます。実行しますか？\n` +
+      `（この操作は取り消せません）`
+    );
+    if (!ok2) return;
+
+    showToast('復元処理中...');
+
+    // 既存の顧客データを全削除してから新しいデータを書き込む
+    const batch = db.batch();
+    customers.forEach(c => batch.delete(db.collection('customers').doc(c.id)));
+    newCustomers.forEach(c => {
+      const { id, ...rest } = c;
+      batch.set(db.collection('customers').doc(id), rest);
+    });
+    await batch.commit();
+    showToast(`✅ 復元完了（顧客${newCustomers.length}名・履歴${totalHistory}件）`);
+  } catch (e) {
+    console.error(e);
+    alert('復元に失敗しました: ' + e.message);
+  }
+}
+
 function csvRow(arr) {
   return arr.map(v => {
     const s = (v == null) ? '' : String(v);
