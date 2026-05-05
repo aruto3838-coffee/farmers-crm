@@ -868,6 +868,13 @@ async function saveSalesImports(data) {
   await db.collection('salesImports').doc('data').set(data);
 }
 
+// ファイル名から取り込み元を判定
+function detectSalesSource(filename) {
+  if (filename.includes('リベシティ')) return 'rebecity';
+  if (filename.includes('ファーマーズ')) return 'farmers';
+  return 'other:' + filename;
+}
+
 // CSVファイルから売上データを取り込む
 async function handleSalesCSVImport(input) {
   const files = Array.from(input.files);
@@ -877,10 +884,23 @@ async function handleSalesCSVImport(input) {
   if (status) status.textContent = '処理中...';
 
   try {
-    let allOrders = [];
-    let importedFiles = [];
+    // 既存データを取り込み元ごとに保持。今回アップロードする取り込み元は後で上書きする。
+    const existingOrders = (importedSalesData && importedSalesData.orders) || [];
+    const existingFiles  = (importedSalesData && importedSalesData.importedFiles) || [];
+    const uploadingSources = new Set(files.map(f => detectSalesSource(f.name)));
+    // 旧データ（sourceタグなし）が残っている場合は、互換のため一旦リセットして再構築させる
+    const hasLegacyData = existingOrders.some(o => !o.source);
+    let allOrders, importedFiles;
+    if (hasLegacyData) {
+      allOrders = [];
+      importedFiles = [];
+    } else {
+      allOrders = existingOrders.filter(o => !uploadingSources.has(o.source));
+      importedFiles = existingFiles.filter(f => !uploadingSources.has(f.source));
+    }
 
     for (const file of files) {
+      const source = detectSalesSource(file.name);
       const buffer = await file.arrayBuffer();
       const bytes = new Uint8Array(buffer);
       let text;
@@ -896,14 +916,32 @@ async function handleSalesCSVImport(input) {
       const rows = parseCSVRows(text);
       if (rows.length < 2) continue;
 
+      // ヘッダーから列位置を自動検出（リベシティ市場とファーマーズマーケットで構造が違うため）
+      const header = rows[0];
+      const findCol = (keywords) => {
+        for (let i = 0; i < header.length; i++) {
+          const h = header[i] || '';
+          if (keywords.some(k => h.includes(k))) return i;
+        }
+        return -1;
+      };
+      const dateCol = findCol(['注文日時']);
+      const statusCol = findCol(['取引ステータス']);
+      const countCol = findCol(['個数', '数量']);
+      const amountCol = findCol(['金額']);
+      if (dateCol < 0 || amountCol < 0) {
+        showToast(`⚠️ ${file.name} の列構成が認識できません`);
+        continue;
+      }
+
       let processed = 0, skipped = 0;
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
-        if (row.length < 15) continue;
-        const dateStr = row[0];
-        const statusVal = row[5] || '';
-        const count = parseInt(row[12]) || 1;
-        const amount = parseInt(row[14]) || 0;
+        if (row.length <= amountCol) continue;
+        const dateStr = row[dateCol] || '';
+        const statusVal = statusCol >= 0 ? (row[statusCol] || '') : '';
+        const count = countCol >= 0 ? (parseInt(row[countCol]) || 1) : 1;
+        const amount = parseInt(row[amountCol]) || 0;
 
         // キャンセル系を除外
         if (statusVal.includes('キャンセル')) { skipped++; continue; }
@@ -912,12 +950,13 @@ async function handleSalesCSVImport(input) {
         if (!dateMatch) continue;
         const date = `${dateMatch[1]}-${dateMatch[2].padStart(2,'0')}-${dateMatch[3].padStart(2,'0')}`;
 
-        allOrders.push({ date, amount, count });
+        allOrders.push({ date, amount, count, source });
         processed++;
       }
 
       importedFiles.push({
         name: file.name,
+        source,
         importedAt: new Date().toISOString(),
         orderCount: processed,
         skippedCount: skipped
