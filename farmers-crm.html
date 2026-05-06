@@ -805,6 +805,9 @@ function renderShipmentList() {
     const bonusHtml = h.bonusBean
       ? `<div style="font-size:0.82rem;color:var(--brown)">🎁 ${escHtml(h.bonusBean)}</div>${h.bonusBeanNote ? `<div style="font-size:0.75rem;color:#aaa;margin-top:2px">${escHtml(h.bonusBeanNote)}</div>` : ''}`
       : '<span style="color:#ccc">—</span>';
+    const sealHtml = h.seal
+      ? `<div style="font-size:0.82rem;color:#555">🏷 ${escHtml(h.seal)}</div>`
+      : '<span style="color:#ccc">—</span>';
     return `<tr class="${diff===0?'today':''}" data-cid="${c.id}" data-hid="${h.id}">
       <td onclick="event.stopPropagation()" style="text-align:center"><input type="checkbox" class="ship-check" style="cursor:pointer;width:16px;height:16px"></td>
       <td onclick="switchTab('crm');selectCustomer('${c.id}')"><span class="ship-badge ${badgeCls}">${badgeText}</span><br><span style="font-size:0.82rem;color:#555">${formatDate(h.shipDate)}</span></td>
@@ -812,6 +815,7 @@ function renderShipmentList() {
       <td onclick="switchTab('crm');selectCustomer('${c.id}')"><div style="color:var(--brown);font-weight:600;margin-bottom:4px">${escHtml(h.product)}</div>${grind}</td>
       <td onclick="switchTab('crm');selectCustomer('${c.id}')">${beanHtml}</td>
       <td onclick="switchTab('crm');selectCustomer('${c.id}')">${bonusHtml}</td>
+      <td onclick="switchTab('crm');selectCustomer('${c.id}')">${sealHtml}</td>
       <td onclick="switchTab('crm');selectCustomer('${c.id}')" style="font-size:0.82rem;color:#666">${roast}</td>
     </tr>`;
   }).join('');
@@ -852,6 +856,7 @@ function renderShipmentList() {
             <th>商品・挽き方</th>
             <th>銘柄</th>
             <th>おまけ</th>
+            <th>シール</th>
             <th>焙煎日</th>
           </tr></thead>
           <tbody>${rows}</tbody>
