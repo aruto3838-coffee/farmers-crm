@@ -313,7 +313,11 @@
   <aside class="sidebar" id="sidebarPanel">
     <button class="sidebar-back" id="sidebarBack" onclick="hideSidebar()">← 詳細に戻る</button>
     <div class="sidebar-header">
-      <input type="text" id="searchInput" placeholder="顧客を検索..." oninput="renderCustomerList()">
+      <div style="position:relative;flex:1;display:flex">
+        <input type="text" id="searchInput" placeholder="顧客を検索..." oninput="updateSearchClearBtn();renderCustomerList()" style="width:100%;padding-right:32px">
+        <button id="searchClearBtn" onclick="clearSearch()" title="検索をクリア"
+          style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);background:#ddd;color:#555;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:0.85rem;line-height:1;padding:0">✕</button>
+      </div>
       <button onclick="toggleRealName()" id="btnEye" title="本名を表示する"
         style="background:white;border:1px solid var(--border);border-radius:50%;width:32px;height:32px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#aaa;padding:0"></button>
       <button class="btn-add-customer" onclick="openCustomerModal()" title="顧客を追加">＋</button>
@@ -1971,6 +1975,22 @@ function downloadClickpostCSV() {
 }
 
 // ===== 顧客データ バックアップCSVエクスポート =====
+// ===== 検索ボックス クリア =====
+function updateSearchClearBtn() {
+  const input = document.getElementById('searchInput');
+  const btn = document.getElementById('searchClearBtn');
+  if (!input || !btn) return;
+  btn.style.display = input.value ? 'block' : 'none';
+}
+function clearSearch() {
+  const input = document.getElementById('searchInput');
+  if (!input) return;
+  input.value = '';
+  updateSearchClearBtn();
+  renderCustomerList();
+  input.focus();
+}
+
 // ===== バックアップ忘れ防止リマインダー =====
 function checkBackupReminder() {
   const last = localStorage.getItem('lastBackupDate');
