@@ -872,6 +872,16 @@ function renderShipmentList() {
 // ===== 売上管理 =====
 let salesYear = 2026;
 let salesMode = 'speed'; // 'speed'=顧客管理から（速報値）, 'final'=CSV取込（確定値）
+let chartMode = 'total'; // 'total'=全体合計, 'product'=商品別
+
+// 商品ごとの色（グラフ用）
+const PRODUCT_COLORS = {
+  '【２種】シングルオリジン': '#8b6f47',
+  '【１種】シングルオリジン': '#d68441',
+  '【8袋入り】ドリップバッグ': '#1565c0',
+  '【4袋入り】ドリップバッグ': '#4a7c59',
+};
+const getProductColor = (p) => PRODUCT_COLORS[p] || '#999';
 let importedSalesData = null; // Firestoreから読み込む取込データ
 
 // 売上取込データの読み込み
@@ -1034,6 +1044,33 @@ function renderSalesReport() {
   const totalAmount = monthly.reduce((s,m) => s + m.amount, 0);
   const totalCount  = monthly.reduce((s,m) => s + m.count, 0);
 
+  // 商品別の月次集計（速報値のみ。CSVには商品情報を持たないため）
+  const productMonthly = {};
+  customers.forEach(c => {
+    (c.history||[]).forEach(h => {
+      if (!h.date || !h.amount || !h.product) return;
+      const year = parseInt(h.date.slice(0,4));
+      const month = parseInt(h.date.slice(5,7));
+      if (year !== salesYear) return;
+      if (!productMonthly[h.product]) {
+        productMonthly[h.product] = Array.from({length:12}, () => ({count: 0, amount: 0}));
+      }
+      const qty = parseInt(h.quantity) || 1;
+      productMonthly[h.product][month-1].count += qty;
+      productMonthly[h.product][month-1].amount += parseInt(h.amount) || 0;
+    });
+  });
+
+  // 当月の商品別内訳
+  const todayObj = new Date(todayLocal());
+  const isCurrentYear = todayObj.getFullYear() === salesYear;
+  const currentMonth = isCurrentYear ? todayObj.getMonth() + 1 : null;
+  const thisMonthBreakdown = currentMonth ? Object.entries(productMonthly).map(([p, arr]) => ({
+    product: p,
+    count: arr[currentMonth-1].count,
+    amount: arr[currentMonth-1].amount
+  })).filter(x => x.count > 0).sort((a,b) => b.amount - a.amount) : [];
+
   const isFinal = salesMode === 'final';
   const hasImported = !!(importedSalesData && importedSalesData.orders && importedSalesData.orders.length);
   const lastUpdated = hasImported ? importedSalesData.lastUpdated.slice(0, 10) : null;
@@ -1049,7 +1086,7 @@ function renderSalesReport() {
     </tr>`).join('');
 
   main.innerHTML = `
-    <div style="padding:24px;max-width:600px">
+    <div style="padding:24px;max-width:760px">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
         <button onclick="salesYear--;renderSalesReport()" style="background:white;border:1px solid var(--border);border-radius:6px;padding:4px 12px;cursor:pointer;font-size:0.9rem">◀</button>
         <div style="font-size:1.1rem;font-weight:700;color:var(--brown)">${salesYear}年 売上管理</div>
@@ -1114,6 +1151,93 @@ function renderSalesReport() {
           </tbody>
         </table>
       </div>
+
+      <!-- 月別売上グラフ -->
+      ${(() => {
+        const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+        const maxAmount = Math.max(...monthly.map(m => m.amount), 1);
+        const productOrder = Object.keys(productMonthly);
+        const showProductMode = chartMode === 'product' && !isFinal && productOrder.length > 0;
+
+        const formatBarLabel = (n) => {
+          if (demoMode) return '■';
+          if (n === 0) return '';
+          if (n >= 10000) return '¥' + Math.round(n/1000) + 'k';
+          return '¥' + n.toLocaleString();
+        };
+
+        const bars = monthly.map((m, i) => {
+          const heightPct = (m.amount / maxAmount) * 100;
+          const isCurMonth = currentMonth === m.month;
+          let barInner;
+          if (showProductMode && m.amount > 0) {
+            barInner = productOrder.map(pName => {
+              const pAmount = productMonthly[pName][i].amount;
+              if (pAmount === 0) return '';
+              const segPct = (pAmount / m.amount) * 100;
+              return `<div style="background:${getProductColor(pName)};width:100%;height:${segPct}%" title="${escHtml(pName)}: ¥${pAmount.toLocaleString()}"></div>`;
+            }).join('');
+          } else {
+            barInner = `<div style="background:${isFinal?'var(--green)':'#e0c068'};width:100%;height:100%;border-radius:4px 4px 0 0"></div>`;
+          }
+          return `
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0">
+              <div style="font-size:0.62rem;color:#888;height:14px;white-space:nowrap">${formatBarLabel(m.amount)}</div>
+              <div style="width:100%;height:140px;display:flex;align-items:flex-end">
+                <div style="width:100%;height:${heightPct}%;display:flex;flex-direction:column-reverse;border-radius:4px 4px 0 0;overflow:hidden">
+                  ${barInner}
+                </div>
+              </div>
+              <div style="font-size:0.7rem;color:${isCurMonth?'var(--brown)':'#666'};font-weight:${isCurMonth?'700':'400'}">${m.month}月</div>
+            </div>`;
+        }).join('');
+
+        const legend = showProductMode ? `
+          <div style="display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:10px;font-size:0.72rem">
+            ${productOrder.map(p => `
+              <span style="display:inline-flex;align-items:center;gap:4px">
+                <span style="display:inline-block;width:10px;height:10px;background:${getProductColor(p)};border-radius:2px"></span>
+                ${escHtml(p)}
+              </span>`).join('')}
+          </div>` : '';
+
+        return `
+          <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:20px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+              <div style="font-size:0.9rem;font-weight:700;color:var(--brown)">📊 月別売上グラフ</div>
+              <select onchange="chartMode=this.value;renderSalesReport()" ${isFinal?'disabled title="商品別は速報値モードでのみ利用できます"':''}
+                style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.78rem;cursor:${isFinal?'not-allowed':'pointer'};opacity:${isFinal?'0.5':'1'}">
+                <option value="total" ${chartMode==='total'?'selected':''}>全体合計</option>
+                <option value="product" ${chartMode==='product'?'selected':''}>商品別</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:flex-end;gap:4px">${bars}</div>
+            ${legend}
+          </div>
+
+          ${currentMonth && !isFinal ? `
+            <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px">
+              <div style="padding:14px 18px;font-weight:700;color:var(--brown);border-bottom:1px solid var(--border)">🔍 今月（${currentMonth}月）の動き</div>
+              ${thisMonthBreakdown.length ? `
+                <table style="width:100%;border-collapse:collapse;font-size:0.88rem">
+                  <thead><tr style="background:var(--green-light);font-size:0.78rem;color:var(--gray)">
+                    <th style="padding:8px 14px;text-align:left">商品</th>
+                    <th style="padding:8px 14px;text-align:right">個数</th>
+                    <th style="padding:8px 14px;text-align:right">売上</th>
+                  </tr></thead>
+                  <tbody>
+                    ${thisMonthBreakdown.map(b => `
+                      <tr>
+                        <td style="padding:8px 14px"><span style="display:inline-block;width:8px;height:8px;background:${getProductColor(b.product)};border-radius:2px;margin-right:6px"></span>${escHtml(b.product)}</td>
+                        <td style="padding:8px 14px;text-align:right">${maskCount(b.count, '個')}</td>
+                        <td style="padding:8px 14px;text-align:right;font-weight:600">${maskAmount(b.amount)}</td>
+                      </tr>`).join('')}
+                  </tbody>
+                </table>
+              ` : `<div style="padding:20px;text-align:center;color:#aaa">まだ今月の記録がありません</div>`}
+            </div>
+          ` : ''}` ;
+      })()}
 
       <!-- CSVダウンロード -->
       <button onclick="exportSalesCSV(${salesYear})"
