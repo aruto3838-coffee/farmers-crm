@@ -276,26 +276,40 @@
     header > label[title="バックアップCSVから復元"],
     header > #btnDemo { display: none !important; }
 
-    /* スマホ用：発送管理テーブルの列を絞る（銘柄・おまけ・シール・焙煎日は隠す） */
-    /* 列順: 1=チェックボックス, 2=日付, 3=名前, 4=商品, 5=銘柄, 6=おまけ, 7=シール, 8=焙煎日, 9=📨 */
-    .ship-table { table-layout: fixed; width: 100% !important; }
-    .ship-table th:nth-child(5),
-    .ship-table th:nth-child(6),
-    .ship-table th:nth-child(7),
-    .ship-table th:nth-child(8),
+    /* スマホ用：発送管理テーブルをカード型レイアウトに変換 */
+    /* 列順: 1=チェック, 2=日付, 3=名前, 4=商品, 5-8=隠す, 9=📨 */
+    .ship-table { display: block; width: 100% !important; }
+    .ship-table thead { display: none; }
+    .ship-table tbody { display: block; }
+    .ship-table tr {
+      display: grid !important;
+      grid-template-columns: 36px 1fr 64px;
+      align-items: center;
+      gap: 2px 10px;
+      padding: 10px 8px;
+      border-bottom: 1px solid #eee;
+    }
+    .ship-table td {
+      display: block;
+      padding: 0 !important;
+      border: none !important;
+    }
+    /* 5〜8列は隠す（銘柄・おまけ・シール・焙煎日） */
     .ship-table td:nth-child(5),
     .ship-table td:nth-child(6),
     .ship-table td:nth-child(7),
     .ship-table td:nth-child(8) { display: none !important; }
-    /* 列幅の制御（スマホ向け） */
-    .ship-table th:nth-child(1), .ship-table td:nth-child(1) { width: 32px !important; }
-    .ship-table th:nth-child(2), .ship-table td:nth-child(2) { width: 70px !important; font-size: 0.72rem; }
-    .ship-table th:nth-child(3), .ship-table td:nth-child(3) { width: auto; font-size: 0.82rem; word-break: break-word; }
-    .ship-table th:nth-child(4), .ship-table td:nth-child(4) { width: 80px !important; font-size: 0.72rem; }
-    .ship-table th:last-child, .ship-table td:last-child { width: 60px !important; padding: 8px 4px !important; }
-    .ship-table td:last-child button { padding: 10px 12px !important; font-size: 1rem !important; }
-    /* セル内パディングを縮める */
-    .ship-table td, .ship-table th { padding: 6px 4px !important; }
+    /* レイアウト配置 */
+    .ship-table td:nth-child(1) { grid-column: 1; grid-row: 1 / span 3; align-self: center; }
+    .ship-table td:nth-child(2) { grid-column: 2; grid-row: 1; font-size: 0.75rem; }
+    .ship-table td:nth-child(3) { grid-column: 2; grid-row: 2; font-size: 0.88rem; min-width: 0; overflow: hidden; }
+    .ship-table td:nth-child(3) > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+    .ship-table td:nth-child(4) { grid-column: 2; grid-row: 3; font-size: 0.72rem; }
+    .ship-table td:last-child { grid-column: 3; grid-row: 1 / span 3; align-self: center; text-align: center; }
+    .ship-table td:last-child button { width: 100%; min-height: 48px; font-size: 1.1rem !important; padding: 10px !important; }
+    /* 日付バッジを横並びに */
+    .ship-table td:nth-child(2) .ship-badge { display: inline-block; margin-right: 4px; }
+    .ship-table td:nth-child(2) br { display: none; }
 
     /* スマホ用：CSV作成カードを折りたたみ可能に */
     .clickpost-card-mobile {
