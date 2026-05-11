@@ -2,7 +2,10 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="リベ市場CRM">
 <title>リベシティ市場 CRM</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -258,6 +261,22 @@
 
     /* モーダルをフル幅に */
     .modal { width: 95vw; max-width: 95vw; padding: 20px; }
+
+    /* スマホ用：iOSで input にフォーカス時の自動ズーム防止（16px以上必要） */
+    input, textarea, select { font-size: 16px !important; }
+
+    /* スマホ用：発送連絡パネルのタッチ操作最適化 */
+    #shipNotifyModal .modal { padding: 16px; max-height: 95vh; }
+    #shipNotifyModal h2 { font-size: 1.05rem; margin-bottom: 12px; }
+    #shipNotifyModal .form-group { margin-bottom: 14px; }
+    #shipNotifyModal label { font-size: 0.85rem; }
+    #shipNotifyModal button { min-height: 44px; } /* AppleのHIG推奨タップ領域 */
+    /* パターンボタンを縦並びに（横に並ぶと小さくなり過ぎる） */
+    #shipNotifyModal [id^="shipPattern_"] { flex: 1 1 100% !important; font-size: 0.95rem !important; padding: 12px !important; }
+    /* コピーボタンを大きく・フル幅 */
+    #shipNotifyModal button[onclick^="copyShipNotifyText"] { width: 100%; padding: 14px !important; font-size: 0.95rem !important; }
+    /* 末尾チェック表示も大きく */
+    #shipNotifyURLList span[style*="font-weight:700"] { font-size: 1rem !important; }
   }
 </style>
 </head>
