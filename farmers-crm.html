@@ -1093,13 +1093,21 @@ function renderSalesReport() {
     });
   });
 
-  const monthBreakdown = Object.entries(productMonthly).map(([p, arr]) => ({
-    product: p,
-    count: arr[breakdownMonth-1].count,
-    amount: arr[breakdownMonth-1].amount,
-    prevCount: (prevYearMonthly[p] || {count:0}).count,
-    prevAmount: (prevYearMonthly[p] || {amount:0}).amount
-  })).filter(x => x.count > 0).sort((a,b) => b.amount - a.amount);
+  // 当年の商品 + 前年同月にしか出てこない商品も含めて統合
+  const productSet = new Set([
+    ...Object.keys(productMonthly),
+    ...Object.keys(prevYearMonthly)
+  ]);
+  const monthBreakdown = Array.from(productSet).map(p => {
+    const cur = productMonthly[p] ? productMonthly[p][breakdownMonth-1] : { count: 0, amount: 0 };
+    const prev = prevYearMonthly[p] || { count: 0, amount: 0 };
+    return {
+      product: p,
+      count: cur.count, amount: cur.amount,
+      prevCount: prev.count, prevAmount: prev.amount
+    };
+  }).filter(x => x.count > 0 || x.prevCount > 0)
+    .sort((a,b) => (b.amount + b.prevAmount) - (a.amount + a.prevAmount));
 
   const isFinal = salesMode === 'final';
   const hasImported = !!(importedSalesData && importedSalesData.orders && importedSalesData.orders.length);
@@ -1347,16 +1355,28 @@ function renderSalesReport() {
                 <table style="width:100%;border-collapse:collapse;font-size:0.88rem">
                   <thead><tr style="background:var(--green-light);font-size:0.78rem;color:var(--gray)">
                     <th style="padding:8px 14px;text-align:left">商品</th>
-                    <th style="padding:8px 14px;text-align:right">個数</th>
-                    <th style="padding:8px 14px;text-align:right">売上</th>
+                    <th style="padding:8px 14px;text-align:right">個数（前年同月）</th>
+                    <th style="padding:8px 14px;text-align:right">売上（前年同月）</th>
                   </tr></thead>
                   <tbody>
-                    ${monthBreakdown.map(b => `
-                      <tr>
-                        <td style="padding:8px 14px"><span style="display:inline-block;width:8px;height:8px;background:${getProductColor(b.product)};border-radius:2px;margin-right:6px"></span>${escHtml(b.product)}</td>
-                        <td style="padding:8px 14px;text-align:right">${maskCount(b.count, '個')}${b.prevCount > 0 ? ` <span style="color:#bbb;font-size:0.78rem">(${maskCount(b.prevCount, '個')})</span>` : ''}</td>
-                        <td style="padding:8px 14px;text-align:right;font-weight:600">${maskAmount(b.amount)}${b.prevAmount > 0 ? ` <span style="color:#bbb;font-size:0.78rem;font-weight:400">(${maskAmount(b.prevAmount)})</span>` : ''}</td>
-                      </tr>`).join('')}
+                    ${monthBreakdown.map(b => {
+                      const arrow = (cur, prev) => {
+                        if (prev === 0 && cur === 0) return '';
+                        if (prev === 0) return '<span style="color:#aaa;margin-right:4px" title="前年データなし">—</span>';
+                        if (cur > prev) return '<span style="color:var(--green);margin-right:4px;font-weight:700">↗</span>';
+                        if (cur < prev) return '<span style="color:#c62828;margin-right:4px;font-weight:700">↘</span>';
+                        return '<span style="color:#888;margin-right:4px">→</span>';
+                      };
+                      const prevSpan = (val, suffix) => val > 0
+                        ? ` <span style="color:#bbb;font-size:0.78rem;font-weight:400">(${suffix==='個'?maskCount(val,'個'):maskAmount(val)})</span>`
+                        : ' <span style="color:#ccc;font-size:0.78rem">(—)</span>';
+                      return `
+                        <tr style="${b.count===0?'color:#999':''}">
+                          <td style="padding:8px 14px"><span style="display:inline-block;width:8px;height:8px;background:${getProductColor(b.product)};border-radius:2px;margin-right:6px"></span>${escHtml(b.product)}</td>
+                          <td style="padding:8px 14px;text-align:right">${arrow(b.count, b.prevCount)}${maskCount(b.count, '個')}${prevSpan(b.prevCount, '個')}</td>
+                          <td style="padding:8px 14px;text-align:right;font-weight:600">${arrow(b.amount, b.prevAmount)}${maskAmount(b.amount)}${prevSpan(b.prevAmount, '円')}</td>
+                        </tr>`;
+                    }).join('')}
                   </tbody>
                 </table>
               ` : `<div style="padding:20px;text-align:center;color:#aaa">この月の記録はありません</div>`}
