@@ -266,9 +266,30 @@
     input, textarea, select { font-size: 16px !important; }
 
     /* スマホ用：ヘッダーをコンパクトに */
-    header { padding: 8px 12px !important; flex-wrap: wrap; gap: 4px !important; }
-    header h1, header .app-title { font-size: 0.95rem !important; }
-    .tab-btn { padding: 5px 10px !important; font-size: 0.78rem !important; }
+    header { padding: 8px 10px !important; flex-wrap: wrap; gap: 4px !important; }
+    header h1 { font-size: 0.9rem !important; line-height: 1.2; white-space: nowrap; }
+    header .subtitle { display: none !important; }
+    header > div:first-child { font-size: 1.4rem !important; }  /* コーヒー絵文字を少し小さく */
+    .tab-btn { padding: 5px 8px !important; font-size: 0.74rem !important; }
+    /* バックアップ・復元・デモはスマホで非表示（PC専用機能） */
+    header > button[onclick="exportBackupCSV()"],
+    header > label[title="バックアップCSVから復元"],
+    header > #btnDemo { display: none !important; }
+
+    /* スマホ用：発送管理テーブルの列を絞る（銘柄・おまけ・シール・焙煎日は隠す） */
+    /* 列順: 1=チェックボックス, 2=日付, 3=名前, 4=商品, 5=銘柄, 6=おまけ, 7=シール, 8=焙煎日, 9=📨 */
+    .ship-table th:nth-child(5),
+    .ship-table th:nth-child(6),
+    .ship-table th:nth-child(7),
+    .ship-table th:nth-child(8),
+    .ship-table td:nth-child(5),
+    .ship-table td:nth-child(6),
+    .ship-table td:nth-child(7),
+    .ship-table td:nth-child(8) { display: none !important; }
+    /* 📨 ボタンを大きく */
+    .ship-table th:last-child,
+    .ship-table td:last-child { width: auto !important; padding: 8px 4px !important; }
+    .ship-table td:last-child button { padding: 8px 14px !important; font-size: 0.95rem !important; }
 
     /* スマホ用：CSV作成カードを折りたたみ可能に */
     .clickpost-card-mobile {
