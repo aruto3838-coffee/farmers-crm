@@ -1803,79 +1803,123 @@ function previewBulkTracking() {
     });
   }
 
-  // プレビュー描画
-  const previewRows = matchedGroups.map(g => {
+  // プレビュー描画（行ごとに別色 + チェックボックスで1件ずつ確認）
+  const previewCards = matchedGroups.map((g, rowIdx) => {
     const c = getCustomer(g.customerId);
     const h = c ? (c.history || []).find(x => x.id === g.historyId) : null;
     if (!c || !h) return '';
     const customerLabel = c.libeName ? `${escHtml(c.libeName)}（${escHtml(c.name||'')}）` : escHtml(c.name || '');
     const existingNote = h.trackingNos && h.trackingNos.length
-      ? `<div style="font-size:0.7rem;color:#c62828;margin-top:2px">⚠️ 既存値あり（${h.trackingNos.length}件）→ 上書きされます</div>`
-      : (h.trackingNo ? `<div style="font-size:0.7rem;color:#c62828;margin-top:2px">⚠️ 既存値あり → 上書きされます</div>` : '');
+      ? `<div style="font-size:0.75rem;color:#c62828;margin-top:4px">⚠️ 既存値あり（${h.trackingNos.length}件）→ 上書きされます</div>`
+      : (h.trackingNo ? `<div style="font-size:0.75rem;color:#c62828;margin-top:4px">⚠️ 既存値あり → 上書きされます</div>` : '');
+    const color = VERIFY_COLORS[rowIdx % VERIFY_COLORS.length];
+    const trackingHtml = g.trackings.map(t => {
+      const head = t.slice(0, -3);
+      const tail = t.slice(-3);
+      return `<div style="font-family:monospace;font-size:0.95rem;line-height:1.5">${head}<span style="background:${color.bg};color:${color.fg};padding:2px 8px;border-radius:4px;font-weight:700;margin-left:2px">${tail}</span></div>`;
+    }).join('');
     return `
-      <tr>
-        <td style="padding:6px 10px;font-size:0.85rem">
-          ${customerLabel}
-          <div style="font-size:0.72rem;color:#888">[${escHtml(g.name)}] ${escHtml(g.content)}</div>
+      <label class="bulk-row" data-idx="${rowIdx}" style="display:flex;gap:12px;align-items:flex-start;padding:14px;border-left:6px solid ${color.fg};background:white;border-bottom:1px solid #eee;cursor:pointer;transition:background 0.2s">
+        <input type="checkbox" class="bulk-check" data-idx="${rowIdx}" onchange="onBulkRowCheck(this)" style="width:22px;height:22px;cursor:pointer;flex-shrink:0;margin-top:2px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:0.92rem;font-weight:600;color:var(--brown);margin-bottom:2px">${customerLabel}</div>
+          <div style="font-size:0.72rem;color:#888;margin-bottom:6px">[${escHtml(g.name)}] ${escHtml(g.content)}</div>
+          ${trackingHtml}
           ${existingNote}
-        </td>
-        <td style="padding:6px 10px;font-size:0.78rem;color:var(--brown)">${g.trackings.map(t => `<div>${t}</div>`).join('')}</td>
-      </tr>`;
+        </div>
+      </label>`;
   }).filter(Boolean).join('');
 
-  const unmatchedRows = remaining.map(r => `
-    <tr style="background:#fff3e0">
-      <td style="padding:6px 10px;font-size:0.85rem;color:#c62828">未マッチ：${escHtml(r.name)}</td>
-      <td style="padding:6px 10px;font-size:0.78rem">${r.tracking}</td>
-    </tr>`).join('');
+  const unmatchedCards = remaining.map(r => `
+    <div style="padding:12px 14px;background:#fff3e0;border-left:6px solid #e65100;border-bottom:1px solid #eee">
+      <div style="font-size:0.85rem;color:#c62828;font-weight:600">⚠️ 未マッチ：${escHtml(r.name)}</div>
+      <div style="font-family:monospace;font-size:0.85rem;margin-top:3px">${r.tracking}</div>
+    </div>`).join('');
 
   document.getElementById('bulkTrackingPreview').innerHTML = `
-    <div style="margin-bottom:8px;font-size:0.82rem">
-      <span style="color:var(--green);font-weight:700">✅ マッチ: ${matchedGroups.length}件</span>
-      ${remaining.length ? `<span style="color:#c62828;margin-left:12px">⚠️ 未マッチ: ${remaining.length}件</span>` : ''}
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:0.82rem;flex-wrap:wrap;gap:8px">
+      <div>
+        <span style="color:var(--green);font-weight:700">✅ マッチ: ${matchedGroups.length}件</span>
+        ${remaining.length ? `<span style="color:#c62828;margin-left:12px">⚠️ 未マッチ: ${remaining.length}件</span>` : ''}
+      </div>
+      ${matchedGroups.length > 1 ? `<button onclick="toggleAllBulkChecks()" style="background:none;border:1px solid var(--border);border-radius:5px;padding:3px 10px;cursor:pointer;font-size:0.75rem;color:#666">全選択 / 解除</button>` : ''}
     </div>
-    <div style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:6px">
-      <table style="width:100%;border-collapse:collapse;font-size:0.85rem">
-        <thead><tr style="background:var(--green-light);position:sticky;top:0">
-          <th style="padding:6px 10px;text-align:left">お客様</th>
-          <th style="padding:6px 10px;text-align:left">追跡番号</th>
-        </tr></thead>
-        <tbody>${previewRows}${unmatchedRows}</tbody>
-      </table>
+    <div style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
+      ${previewCards}${unmatchedCards}
     </div>
-    <button onclick="applyBulkTracking()" id="bulkTrackingApplyBtn" ${matchedGroups.length===0?'disabled':''}
-      style="margin-top:12px;background:var(--green);color:white;border:none;border-radius:6px;padding:10px 20px;font-size:0.9rem;font-weight:700;cursor:${matchedGroups.length?'pointer':'not-allowed'};opacity:${matchedGroups.length?1:0.5}">
-      ✅ ${matchedGroups.length}件を反映する
+    <button onclick="applyBulkTracking()" id="bulkTrackingApplyBtn" disabled
+      style="margin-top:14px;background:#ccc;color:white;border:none;border-radius:6px;padding:11px 22px;font-size:0.95rem;font-weight:700;cursor:not-allowed;opacity:0.7">
+      ✅ 確認済み 0件を反映する
     </button>
+    <div id="bulkTrackingHint" style="margin-top:6px;font-size:0.75rem;color:#999">物理ラベルと照合してチェックを入れた件数だけ反映されます</div>
   `;
   // matchedGroups を一時保管（反映ボタンで使う）
   window._bulkTrackingMatched = matchedGroups;
 }
 
+// チェック状態に応じて反映ボタンを更新
+function onBulkRowCheck(cb) {
+  // 行の見た目を変える
+  const row = cb.closest('.bulk-row');
+  if (row) {
+    row.style.background = cb.checked ? '#f1f8f4' : 'white';
+    row.style.opacity = cb.checked ? '0.65' : '1';
+  }
+  const checked = document.querySelectorAll('.bulk-check:checked').length;
+  const btn = document.getElementById('bulkTrackingApplyBtn');
+  if (!btn) return;
+  btn.textContent = `✅ 確認済み ${checked}件を反映する`;
+  btn.disabled = checked === 0;
+  if (checked === 0) {
+    btn.style.background = '#ccc';
+    btn.style.cursor = 'not-allowed';
+    btn.style.opacity = '0.7';
+  } else {
+    btn.style.background = 'var(--green)';
+    btn.style.cursor = 'pointer';
+    btn.style.opacity = '1';
+  }
+}
+
+function toggleAllBulkChecks() {
+  const cbs = document.querySelectorAll('.bulk-check');
+  const allChecked = Array.from(cbs).every(cb => cb.checked);
+  cbs.forEach(cb => {
+    cb.checked = !allChecked;
+    onBulkRowCheck(cb);
+  });
+}
+
 async function applyBulkTracking() {
   const groups = window._bulkTrackingMatched || [];
   if (!groups.length) return;
-  if (!confirm(`${groups.length}件の追跡番号を反映します。よろしいですか？`)) return;
+  // チェックが入っている行だけ反映対象
+  const checkedIdxs = Array.from(document.querySelectorAll('.bulk-check:checked'))
+    .map(cb => parseInt(cb.dataset.idx));
+  const targets = checkedIdxs.map(i => groups[i]).filter(Boolean);
+  if (!targets.length) return;
+  if (!confirm(`チェック済みの${targets.length}件の追跡番号を反映します。よろしいですか？`)) return;
 
   const customerMap = new Map();
-  groups.forEach(g => {
+  targets.forEach(g => {
     const c = getCustomer(g.customerId);
     if (!c) return;
     const h = (c.history || []).find(x => x.id === g.historyId);
     if (!h) return;
     h.trackingNos = g.trackings;
-    // 後方互換: 1件のみなら trackingNo にも入れる
     h.trackingNo = g.trackings[0];
     customerMap.set(c.id, c);
   });
   for (const c of customerMap.values()) {
     await dbSave(c);
   }
-  // 反映済みなので localStorage のマッピングを削除
-  localStorage.removeItem('clickpostBatch');
+  // 全件反映済みのときだけマッピングを削除（一部反映の場合は残す）
+  if (targets.length === groups.length) {
+    localStorage.removeItem('clickpostBatch');
+  }
   window._bulkTrackingMatched = null;
   closeBulkTrackingModal();
-  showToast(`✅ ${groups.length}件の追跡番号を反映しました`);
+  showToast(`✅ ${targets.length}件の追跡番号を反映しました`);
   if (currentTab === 'ship') renderShipmentList();
 }
 
