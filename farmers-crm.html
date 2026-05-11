@@ -1456,40 +1456,6 @@ function renderAnalytics() {
       </tr>`;
   }).join('');
 
-  // === 月別予測（今月含む3ヶ月）===
-  const todayObj = new Date(today);
-  const months = [];
-  for (let i = 0; i < 3; i++) {
-    const d = new Date(todayObj.getFullYear(), todayObj.getMonth() + i, 1);
-    months.push({ year: d.getFullYear(), month: d.getMonth()+1, confirmed: 0, predicted: 0 });
-  }
-
-  customers.forEach(c => {
-    (c.history||[]).forEach(h => {
-      if (!h.date || !h.amount) return;
-      const y = parseInt(h.date.slice(0,4));
-      const m = parseInt(h.date.slice(5,7));
-      const month = months.find(mo => mo.year === y && mo.month === m);
-      if (month) month.confirmed += parseInt(h.amount) || 0;
-    });
-  });
-
-  predictions.forEach(p => {
-    if (p.predDate < today) return;
-    const y = parseInt(p.predDate.slice(0,4));
-    const m = parseInt(p.predDate.slice(5,7));
-    const month = months.find(mo => mo.year === y && mo.month === m);
-    if (month) month.predicted += p.avgAmount;
-  });
-
-  const forecastRows = months.map(m => `
-    <tr>
-      <td style="padding:8px 14px;font-weight:600">${m.year}年${m.month}月</td>
-      <td style="padding:8px 14px;text-align:right;font-size:0.82rem;color:var(--green)">${maskAmount(m.confirmed)}</td>
-      <td style="padding:8px 14px;text-align:right;font-size:0.82rem;color:#888">${demoMode ? '+¥■■■■' : '+¥'+m.predicted.toLocaleString()}</td>
-      <td style="padding:8px 14px;text-align:right;font-weight:700;color:var(--brown)">${maskAmount(m.confirmed+m.predicted)}</td>
-    </tr>`).join('');
-
   main.innerHTML = `
     <div style="padding:24px;max-width:760px">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
@@ -1598,20 +1564,6 @@ function renderAnalytics() {
         </table>
       </div>
 
-      <!-- 月別予測 -->
-      <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px">
-        <div style="padding:14px 18px;font-weight:700;color:var(--brown);border-bottom:1px solid var(--border)">📅 今後3ヶ月の売上予測</div>
-        <div style="padding:8px 18px;font-size:0.75rem;color:#aaa;border-bottom:1px solid var(--border)">※ 確定 = すでに記録された注文 / 予測 = リピート予測の合計（4回以上購入のお客様のみ）</div>
-        <table style="width:100%;border-collapse:collapse;font-size:0.88rem">
-          <thead><tr style="background:var(--green-light);font-size:0.8rem;color:var(--gray)">
-            <th style="padding:8px 14px;text-align:left">月</th>
-            <th style="padding:8px 14px;text-align:right">確定</th>
-            <th style="padding:8px 14px;text-align:right">予測</th>
-            <th style="padding:8px 14px;text-align:right">合計見込み</th>
-          </tr></thead>
-          <tbody>${forecastRows}</tbody>
-        </table>
-      </div>
     </div>`;
 }
 
