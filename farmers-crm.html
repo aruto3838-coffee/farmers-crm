@@ -1077,10 +1077,28 @@ function renderSalesReport() {
   const currentMonth = isCurrentYear ? todayObj.getMonth() + 1 : null;
   const breakdownMonth = selectedSalesMonth;
   const isThisMonth = isCurrentYear && currentMonth === breakdownMonth;
+
+  // 昨年同月の商品別内訳（比較用）
+  const prevYear = salesYear - 1;
+  const prevYearMonthly = {};
+  customers.forEach(c => {
+    (c.history||[]).forEach(h => {
+      if (!h.date || !h.amount || !h.product) return;
+      if (parseInt(h.date.slice(0,4)) !== prevYear) return;
+      const m = parseInt(h.date.slice(5,7));
+      if (m !== breakdownMonth) return;
+      if (!prevYearMonthly[h.product]) prevYearMonthly[h.product] = { count: 0, amount: 0 };
+      prevYearMonthly[h.product].count += parseInt(h.quantity) || 1;
+      prevYearMonthly[h.product].amount += parseInt(h.amount) || 0;
+    });
+  });
+
   const monthBreakdown = Object.entries(productMonthly).map(([p, arr]) => ({
     product: p,
     count: arr[breakdownMonth-1].count,
-    amount: arr[breakdownMonth-1].amount
+    amount: arr[breakdownMonth-1].amount,
+    prevCount: (prevYearMonthly[p] || {count:0}).count,
+    prevAmount: (prevYearMonthly[p] || {amount:0}).amount
   })).filter(x => x.count > 0).sort((a,b) => b.amount - a.amount);
 
   const isFinal = salesMode === 'final';
@@ -1336,8 +1354,8 @@ function renderSalesReport() {
                     ${monthBreakdown.map(b => `
                       <tr>
                         <td style="padding:8px 14px"><span style="display:inline-block;width:8px;height:8px;background:${getProductColor(b.product)};border-radius:2px;margin-right:6px"></span>${escHtml(b.product)}</td>
-                        <td style="padding:8px 14px;text-align:right">${maskCount(b.count, '個')}</td>
-                        <td style="padding:8px 14px;text-align:right;font-weight:600">${maskAmount(b.amount)}</td>
+                        <td style="padding:8px 14px;text-align:right">${maskCount(b.count, '個')}${b.prevCount > 0 ? ` <span style="color:#bbb;font-size:0.78rem">(${maskCount(b.prevCount, '個')})</span>` : ''}</td>
+                        <td style="padding:8px 14px;text-align:right;font-weight:600">${maskAmount(b.amount)}${b.prevAmount > 0 ? ` <span style="color:#bbb;font-size:0.78rem;font-weight:400">(${maskAmount(b.prevAmount)})</span>` : ''}</td>
                       </tr>`).join('')}
                   </tbody>
                 </table>
