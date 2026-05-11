@@ -609,6 +609,48 @@
   </div>
 </div>
 
+<!-- 発送連絡モーダル -->
+<div class="modal-overlay" id="shipNotifyModal">
+  <div class="modal" style="max-width:520px">
+    <h2 id="shipNotifyTitle">📨 発送連絡</h2>
+    <div class="form-group">
+      <label>追跡番号</label>
+      <div style="display:flex;gap:6px;align-items:stretch">
+        <input type="text" id="shipNotifyTracking" placeholder="例：628590892252" style="flex:1" oninput="updateShipNotifyTrackingURL()" onblur="saveShipNotifyTracking()">
+        <button type="button" onclick="pasteShipTracking()" title="クリップボードから取り込む"
+          style="background:white;border:1px solid var(--green-mid);color:var(--green);border-radius:6px;padding:0 12px;cursor:pointer;font-size:0.78rem;white-space:nowrap">📋 貼り付け</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>パターン</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button type="button" id="shipPattern_standard" onclick="updateShipNotifyMessage('standard')"
+          style="flex:1;padding:8px 12px;background:white;color:var(--brown);border:1px solid var(--green-mid);border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:600;min-width:100px">標準</button>
+        <button type="button" id="shipPattern_delay" onclick="updateShipNotifyMessage('delay')"
+          style="flex:1;padding:8px 12px;background:white;color:var(--brown);border:1px solid var(--green-mid);border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:600;min-width:100px">遅延（昨日発送）</button>
+        <button type="button" id="shipPattern_evening" onclick="updateShipNotifyMessage('evening')"
+          style="flex:1;padding:8px 12px;background:white;color:var(--brown);border:1px solid var(--green-mid);border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:600;min-width:100px">夜（本日発送）</button>
+      </div>
+      <div style="font-size:0.72rem;color:#aaa;margin-top:4px">挨拶は現在時刻に合わせて自動切替。文章はそのまま編集できます</div>
+    </div>
+    <div class="form-group">
+      <label>① コメント欄に貼り付け</label>
+      <textarea id="shipNotifyMessage" rows="6" style="width:100%;font-family:inherit"></textarea>
+      <button type="button" onclick="copyShipNotifyText('shipNotifyMessage')"
+        style="margin-top:6px;background:var(--green);color:white;border:none;border-radius:6px;padding:8px 14px;font-size:0.85rem;font-weight:600;cursor:pointer">📋 コメント文をコピー</button>
+    </div>
+    <div class="form-group">
+      <label>② 発送通知欄に貼り付け（追跡URL）</label>
+      <textarea id="shipNotifyURL" rows="3" style="width:100%;font-family:inherit;font-size:0.8rem"></textarea>
+      <button type="button" onclick="copyShipNotifyText('shipNotifyURL')"
+        style="margin-top:6px;background:var(--green);color:white;border:none;border-radius:6px;padding:8px 14px;font-size:0.85rem;font-weight:600;cursor:pointer">📋 追跡URLをコピー</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeShipNotify()">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
@@ -821,6 +863,10 @@ function renderShipmentList() {
       <td onclick="switchTab('crm');selectCustomer('${c.id}')">${bonusHtml}</td>
       <td onclick="switchTab('crm');selectCustomer('${c.id}')">${sealHtml}</td>
       <td onclick="switchTab('crm');selectCustomer('${c.id}')" style="font-size:0.82rem;color:#666">${roast}</td>
+      <td onclick="event.stopPropagation()" style="text-align:center">
+        <button onclick="openShipNotify('${c.id}','${h.id}')" title="発送連絡の文面をコピー"
+          style="background:var(--green);color:white;border:none;border-radius:6px;padding:5px 10px;font-size:0.78rem;cursor:pointer;white-space:nowrap">📨</button>
+      </td>
     </tr>`;
   }).join('');
 
@@ -862,6 +908,7 @@ function renderShipmentList() {
             <th>おまけ</th>
             <th>シール</th>
             <th>焙煎日</th>
+            <th style="width:50px"></th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
@@ -1655,6 +1702,117 @@ function renderAnalytics() {
       </div>
 
     </div>`;
+}
+
+// ===== 発送連絡 =====
+function getGreetingByHour() {
+  const h = new Date().getHours();
+  if (h < 11) return 'おはようございます😊';
+  if (h < 17) return 'こんにちは😊';
+  return 'こんばんは😊';
+}
+
+// パターン別のテンプレート生成
+function buildShipMessage(pattern) {
+  const greet = getGreetingByHour();
+  if (pattern === 'delay') {
+    return `${greet}\nご連絡が遅くなり申し訳ございません🙇‍♀️\n昨日、クリックポストにて発送いたしました。\nお届けまでもう少々お待ちくださいませ☕️✨\n引き続きよろしくお願いいたします！`;
+  }
+  if (pattern === 'evening') {
+    return `こんばんは😊\n大変お待たせいたしました！\n本日、クリックポストにて発送いたしました。\nお届けまでもう少々お待ちくださいませ☕️✨\n引き続きよろしくお願いいたします！`;
+  }
+  // 標準
+  return `${greet}\n大変お待たせいたしました！\nクリックポストにて発送いたしました。\nお届けまでもう少々お待ちくださいませ☕️✨\n引き続きよろしくお願いいたします！`;
+}
+
+function buildTrackingURL(trackingNo) {
+  const clean = (trackingNo||'').replace(/\s+/g, '').replace(/[^\d]/g, '');
+  if (!clean) return '追跡：';
+  return `追跡：https://trackings.post.japanpost.jp/services/srv/search/direct?searchKind=S002&locale=ja&reqCodeNo1=%22${clean}%22`;
+}
+
+let _shipNotifyCid = null;
+let _shipNotifyHid = null;
+
+function openShipNotify(cid, hid) {
+  _shipNotifyCid = cid;
+  _shipNotifyHid = hid;
+  const c = getCustomer(cid);
+  const h = c.history.find(x => x.id === hid);
+  if (!h) return;
+  const customerName = c.libeName || c.name || '';
+
+  document.getElementById('shipNotifyTitle').textContent = `📨 発送連絡 - ${customerName}`;
+  document.getElementById('shipNotifyTracking').value = h.trackingNo || '';
+  updateShipNotifyMessage('standard');
+  document.getElementById('shipNotifyModal').classList.add('open');
+}
+
+function updateShipNotifyMessage(pattern) {
+  // パターンボタンのハイライト
+  ['standard','delay','evening'].forEach(p => {
+    const btn = document.getElementById('shipPattern_' + p);
+    if (btn) {
+      btn.style.background = p === pattern ? 'var(--green)' : 'white';
+      btn.style.color = p === pattern ? 'white' : 'var(--brown)';
+    }
+  });
+  document.getElementById('shipNotifyMessage').value = buildShipMessage(pattern);
+  updateShipNotifyTrackingURL();
+}
+
+function updateShipNotifyTrackingURL() {
+  const trackingNo = document.getElementById('shipNotifyTracking').value;
+  document.getElementById('shipNotifyURL').value = buildTrackingURL(trackingNo);
+}
+
+async function copyShipNotifyText(targetId) {
+  const el = document.getElementById(targetId);
+  if (!el) return;
+  try {
+    await navigator.clipboard.writeText(el.value);
+    showToast('📋 クリップボードにコピーしました');
+  } catch (e) {
+    // フォールバック: select + execCommand
+    el.select();
+    document.execCommand('copy');
+    showToast('📋 コピーしました');
+  }
+}
+
+// クリップボードから追跡番号を取り込む（12桁の連続した数字を抽出）
+async function pasteShipTracking() {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text) { showToast('クリップボードが空です'); return; }
+    // 12桁の連続した数字を探す（クリックポスト追跡番号の形式）
+    const match = text.match(/\d{12}/) || text.match(/\d{10,}/);
+    const trackingNo = match ? match[0] : text.trim().replace(/[^\d]/g, '');
+    if (!trackingNo) { showToast('追跡番号らしき数字が見つかりません'); return; }
+    document.getElementById('shipNotifyTracking').value = trackingNo;
+    updateShipNotifyTrackingURL();
+    showToast('📋 追跡番号を取り込みました');
+  } catch (e) {
+    showToast('クリップボード読み取りが許可されていません');
+  }
+}
+
+async function saveShipNotifyTracking() {
+  if (!_shipNotifyCid || !_shipNotifyHid) return;
+  const trackingNo = document.getElementById('shipNotifyTracking').value.trim();
+  const c = getCustomer(_shipNotifyCid);
+  const h = c.history.find(x => x.id === _shipNotifyHid);
+  if (!h) return;
+  if (trackingNo === (h.trackingNo || '')) return; // 変更なし
+  h.trackingNo = trackingNo;
+  await dbSave(c);
+  showToast('💾 追跡番号を保存しました');
+}
+
+function closeShipNotify() {
+  document.getElementById('shipNotifyModal').classList.remove('open');
+  _shipNotifyCid = null;
+  _shipNotifyHid = null;
 }
 
 // ===== 発送済みチェック =====
