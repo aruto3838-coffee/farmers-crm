@@ -1259,36 +1259,43 @@ function renderSalesReport() {
             const dailyTotalCount = daily.reduce((s,d) => s + d.count, 0);
 
             // SVG: 件数の棒グラフ
-            const W = 600, H = 180, padL = 30, padR = 10, padT = 18, padB = 22;
+            const W = 600, H = 180, padL = 32, padR = 12, padT = 18, padB = 22;
             const chartW = W - padL - padR, chartH = H - padT - padB;
-            const xStep = chartW / Math.max(daysInMonth - 1, 1);
-            const barW = Math.max(xStep * 0.6, 4);
+            // 「日」を等分スロット中央に配置 → Y軸と1日の棒が重ならない
+            const xStep = chartW / daysInMonth;
+            const barW = Math.max(xStep * 0.7, 4);
+            const xOf = (dayIdx) => padL + xStep * (dayIdx + 0.5);
 
             const bars = daily.map((d, i) => {
               if (d.count === 0) return '';
-              const x = padL + xStep * i - barW / 2;
+              const cx = xOf(i);
+              const x = cx - barW / 2;
               const h = (d.count / dailyMaxCount) * chartH;
               const y = padT + chartH - h;
-              const cx = padL + xStep * i;
-              const label = `<text x="${cx.toFixed(1)}" y="${(y - 3).toFixed(1)}" text-anchor="middle" font-size="9" fill="#555" font-weight="600">${demoMode?'■':d.count}</text>`;
-              return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" fill="${isFinal?'var(--green)':'#b8860b'}" rx="2"><title>${d.day}日: ${d.count}件</title></rect>${label}`;
+              return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" fill="${isFinal?'var(--green)':'#b8860b'}" rx="2"><title>${d.day}日: ${d.count}件</title></rect>`;
             }).join('');
 
             // X軸ラベル（5日刻み + 末日）
             const xLabels = [1,5,10,15,20,25,daysInMonth].filter((v, i, a) => a.indexOf(v) === i && v <= daysInMonth)
               .map(d => {
-                const x = padL + xStep * (d - 1);
+                const x = xOf(d - 1);
                 return `<text x="${x.toFixed(1)}" y="${(H-6)}" text-anchor="middle" font-size="10" fill="#888">${d}</text>`;
               }).join('');
-            // Y軸ラベル（件数）
+
+            // Y軸の目盛線とラベル（件数）
             const yMax = dailyMaxCount;
             const yMid = Math.ceil(yMax / 2);
-            const yLabels = `
-              <text x="${padL-4}" y="${(padT+4).toFixed(1)}" text-anchor="end" font-size="9" fill="#888">${demoMode?'■':yMax}</text>
-              <text x="${padL-4}" y="${(padT + chartH/2 + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#888">${demoMode?'■':yMid}</text>
-              <text x="${padL-4}" y="${(padT+chartH).toFixed(1)}" text-anchor="end" font-size="9" fill="#888">0</text>
-              <text x="${(padL-4)}" y="${(padT-6).toFixed(1)}" text-anchor="end" font-size="9" fill="#aaa">件</text>
-            `;
+            const ticks = [
+              { val: yMax, y: padT },
+              { val: yMid, y: padT + chartH / 2 },
+              { val: 0, y: padT + chartH }
+            ];
+            const yGrid = ticks.map(t =>
+              `<line x1="${padL}" y1="${t.y.toFixed(1)}" x2="${W-padR}" y2="${t.y.toFixed(1)}" stroke="#eee" stroke-width="1" stroke-dasharray="${t.val===0?'0':'3,3'}"/>`
+            ).join('');
+            const yLabels = ticks.map(t =>
+              `<text x="${padL-4}" y="${(t.y+3).toFixed(1)}" text-anchor="end" font-size="9" fill="#888">${demoMode?'■':t.val}</text>`
+            ).join('') + `<text x="${(padL-4)}" y="${(padT-6).toFixed(1)}" text-anchor="end" font-size="9" fill="#aaa">件</text>`;
             return `
               <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:20px">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
@@ -1301,8 +1308,8 @@ function renderSalesReport() {
                 </div>
                 <div style="font-size:0.78rem;color:var(--gray);margin-bottom:6px">${selectedSalesMonth}月合計: ${maskCount(dailyTotalCount)}（${maskAmount(dailyTotalAmount)}）</div>
                 <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">
-                  <line x1="${padL}" y1="${padT+chartH}" x2="${W-padR}" y2="${padT+chartH}" stroke="#ddd" stroke-width="1"/>
-                  <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT+chartH}" stroke="#ddd" stroke-width="1"/>
+                  ${yGrid}
+                  <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT+chartH}" stroke="#ccc" stroke-width="1"/>
                   ${bars}
                   ${xLabels}
                   ${yLabels}
