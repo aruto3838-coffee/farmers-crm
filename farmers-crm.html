@@ -278,6 +278,7 @@
 
     /* スマホ用：発送管理テーブルの列を絞る（銘柄・おまけ・シール・焙煎日は隠す） */
     /* 列順: 1=チェックボックス, 2=日付, 3=名前, 4=商品, 5=銘柄, 6=おまけ, 7=シール, 8=焙煎日, 9=📨 */
+    .ship-table { table-layout: fixed; width: 100% !important; }
     .ship-table th:nth-child(5),
     .ship-table th:nth-child(6),
     .ship-table th:nth-child(7),
@@ -286,10 +287,15 @@
     .ship-table td:nth-child(6),
     .ship-table td:nth-child(7),
     .ship-table td:nth-child(8) { display: none !important; }
-    /* 📨 ボタンを大きく */
-    .ship-table th:last-child,
-    .ship-table td:last-child { width: auto !important; padding: 8px 4px !important; }
-    .ship-table td:last-child button { padding: 8px 14px !important; font-size: 0.95rem !important; }
+    /* 列幅の制御（スマホ向け） */
+    .ship-table th:nth-child(1), .ship-table td:nth-child(1) { width: 32px !important; }
+    .ship-table th:nth-child(2), .ship-table td:nth-child(2) { width: 70px !important; font-size: 0.72rem; }
+    .ship-table th:nth-child(3), .ship-table td:nth-child(3) { width: auto; font-size: 0.82rem; word-break: break-word; }
+    .ship-table th:nth-child(4), .ship-table td:nth-child(4) { width: 80px !important; font-size: 0.72rem; }
+    .ship-table th:last-child, .ship-table td:last-child { width: 60px !important; padding: 8px 4px !important; }
+    .ship-table td:last-child button { padding: 10px 12px !important; font-size: 1rem !important; }
+    /* セル内パディングを縮める */
+    .ship-table td, .ship-table th { padding: 6px 4px !important; }
 
     /* スマホ用：CSV作成カードを折りたたみ可能に */
     .clickpost-card-mobile {
