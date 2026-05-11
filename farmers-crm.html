@@ -659,9 +659,7 @@
     </div>
     <div class="form-group">
       <label>② 発送通知欄に貼り付け（追跡URL）</label>
-      <textarea id="shipNotifyURL" rows="3" style="width:100%;font-family:inherit;font-size:0.8rem"></textarea>
-      <button type="button" onclick="copyShipNotifyText('shipNotifyURL')"
-        style="margin-top:6px;background:var(--green);color:white;border:none;border-radius:6px;padding:8px 14px;font-size:0.85rem;font-weight:600;cursor:pointer">📋 追跡URLをコピー</button>
+      <div id="shipNotifyURLList"></div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeShipNotify()">閉じる</button>
@@ -1951,8 +1949,29 @@ function updateShipNotifyMessage(pattern) {
 }
 
 function updateShipNotifyTrackingURL() {
-  const trackingNo = document.getElementById('shipNotifyTracking').value;
-  document.getElementById('shipNotifyURL').value = buildTrackingURL(trackingNo);
+  const trackingNoInput = document.getElementById('shipNotifyTracking').value || '';
+  const tokens = trackingNoInput.split(/[\s,、]+/).filter(Boolean);
+  const numbers = tokens
+    .map(t => (t.match(/\d{10,}/) || [t.replace(/[^\d]/g, '')])[0])
+    .filter(n => n && n.length >= 10);
+
+  const list = document.getElementById('shipNotifyURLList');
+  if (!list) return;
+  if (!numbers.length) {
+    list.innerHTML = `<div style="font-size:0.8rem;color:#aaa;padding:8px 0">追跡番号を入力すると追跡URLが表示されます</div>`;
+    return;
+  }
+  list.innerHTML = numbers.map((n, i) => {
+    const url = `追跡：https://trackings.post.japanpost.jp/services/srv/search/direct?searchKind=S002&locale=ja&reqCodeNo1=%22${n}%22`;
+    const label = numbers.length > 1 ? `小口 ${i+1} / ${numbers.length}` : '';
+    return `
+      <div style="margin-bottom:${i<numbers.length-1?'10px':'0'}">
+        ${label ? `<div style="font-size:0.72rem;color:var(--brown);font-weight:600;margin-bottom:3px">${label}</div>` : ''}
+        <textarea id="shipNotifyURL_${i}" rows="3" readonly style="width:100%;font-family:inherit;font-size:0.78rem;background:#fafafa">${url}</textarea>
+        <button type="button" onclick="copyShipNotifyText('shipNotifyURL_${i}')"
+          style="margin-top:4px;background:var(--green);color:white;border:none;border-radius:6px;padding:7px 14px;font-size:0.83rem;font-weight:600;cursor:pointer">📋 追跡URLをコピー${numbers.length>1?`（${i+1}）`:''}</button>
+      </div>`;
+  }).join('');
 }
 
 async function copyShipNotifyText(targetId) {
