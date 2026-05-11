@@ -898,6 +898,15 @@ async function saveSalesImports(data) {
   await db.collection('salesImports').doc('data').set(data);
 }
 
+// 日別グラフの月切替（年をまたぐと salesYear も更新）
+function changeSalesMonth(delta) {
+  let m = selectedSalesMonth + delta;
+  if (m < 1) { m = 12; salesYear--; }
+  else if (m > 12) { m = 1; salesYear++; }
+  selectedSalesMonth = m;
+  renderSalesReport();
+}
+
 // ファイル名から取り込み元を判定
 function detectSalesSource(filename) {
   if (filename.includes('リベシティ')) return 'rebecity';
@@ -1265,17 +1274,15 @@ function renderSalesReport() {
                 const x = padL + xStep * (d - 1);
                 return `<text x="${x.toFixed(1)}" y="${(H-6)}" text-anchor="middle" font-size="10" fill="#888">${d}</text>`;
               }).join('');
-            const monthOptions = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']
-              .map((m, i) => `<option value="${i+1}" ${selectedSalesMonth===i+1?'selected':''}>${m}</option>`).join('');
-
             return `
               <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:20px">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
                   <div style="font-size:0.9rem;font-weight:700;color:var(--brown)">📈 日別売上（${salesYear}年）</div>
-                  <select onchange="selectedSalesMonth=parseInt(this.value);renderSalesReport()"
-                    style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.78rem;cursor:pointer">
-                    ${monthOptions}
-                  </select>
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <button onclick="changeSalesMonth(-1)" style="background:white;border:1px solid var(--border);border-radius:6px;width:30px;height:30px;cursor:pointer;font-size:0.85rem;padding:0">◀</button>
+                    <div style="min-width:48px;text-align:center;font-size:0.85rem;font-weight:600;color:var(--brown)">${selectedSalesMonth}月</div>
+                    <button onclick="changeSalesMonth(1)" style="background:white;border:1px solid var(--border);border-radius:6px;width:30px;height:30px;cursor:pointer;font-size:0.85rem;padding:0">▶</button>
+                  </div>
                 </div>
                 <div style="font-size:0.78rem;color:var(--gray);margin-bottom:6px">${selectedSalesMonth}月合計: ${maskAmount(dailyTotal)}</div>
                 <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">
