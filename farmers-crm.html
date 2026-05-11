@@ -1350,7 +1350,14 @@ function renderSalesReport() {
 
           ${!isFinal ? `
             <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px">
-              <div style="padding:14px 18px;font-weight:700;color:var(--brown);border-bottom:1px solid var(--border)">🔍 ${isThisMonth?'今月':salesYear+'年'+breakdownMonth+'月'}の動き</div>
+              <div style="padding:14px 18px;font-weight:700;color:var(--brown);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+                <span>🔍 ${isThisMonth?'今月':salesYear+'年'+breakdownMonth+'月'}の動き</span>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <button onclick="changeSalesMonth(-1)" style="background:white;border:1px solid var(--border);border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:0.75rem;padding:0">◀</button>
+                  <div style="min-width:42px;text-align:center;font-size:0.82rem;font-weight:600;color:var(--brown)">${breakdownMonth}月</div>
+                  <button onclick="changeSalesMonth(1)" style="background:white;border:1px solid var(--border);border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:0.75rem;padding:0">▶</button>
+                </div>
+              </div>
               ${monthBreakdown.length ? `
                 <table style="width:100%;border-collapse:collapse;font-size:0.88rem">
                   <thead><tr style="background:var(--green-light);font-size:0.78rem;color:var(--gray)">
@@ -1359,7 +1366,7 @@ function renderSalesReport() {
                     <th style="padding:8px 14px;text-align:right">売上（前年同月）</th>
                   </tr></thead>
                   <tbody>
-                    ${monthBreakdown.map(b => {
+                    ${(() => {
                       const arrow = (cur, prev) => {
                         if (prev === 0 && cur === 0) return '';
                         if (prev === 0) return '<span style="color:#aaa;margin-right:4px" title="前年データなし">—</span>';
@@ -1370,13 +1377,24 @@ function renderSalesReport() {
                       const prevSpan = (val, suffix) => val > 0
                         ? ` <span style="color:#bbb;font-size:0.78rem;font-weight:400">(${suffix==='個'?maskCount(val,'個'):maskAmount(val)})</span>`
                         : ' <span style="color:#ccc;font-size:0.78rem">(—)</span>';
-                      return `
+                      const rowsHtml = monthBreakdown.map(b => `
                         <tr style="${b.count===0?'color:#999':''}">
                           <td style="padding:8px 14px"><span style="display:inline-block;width:8px;height:8px;background:${getProductColor(b.product)};border-radius:2px;margin-right:6px"></span>${escHtml(b.product)}</td>
                           <td style="padding:8px 14px;text-align:right">${arrow(b.count, b.prevCount)}${maskCount(b.count, '個')}${prevSpan(b.prevCount, '個')}</td>
                           <td style="padding:8px 14px;text-align:right;font-weight:600">${arrow(b.amount, b.prevAmount)}${maskAmount(b.amount)}${prevSpan(b.prevAmount, '円')}</td>
+                        </tr>`).join('');
+                      const sum = monthBreakdown.reduce((a,b) => ({
+                        count: a.count + b.count, amount: a.amount + b.amount,
+                        prevCount: a.prevCount + b.prevCount, prevAmount: a.prevAmount + b.prevAmount
+                      }), { count:0, amount:0, prevCount:0, prevAmount:0 });
+                      const totalRow = `
+                        <tr style="border-top:2px solid var(--border);font-weight:700;background:#fafafa">
+                          <td style="padding:10px 14px">合計</td>
+                          <td style="padding:10px 14px;text-align:right">${arrow(sum.count, sum.prevCount)}${maskCount(sum.count, '個')}${prevSpan(sum.prevCount, '個')}</td>
+                          <td style="padding:10px 14px;text-align:right;color:var(--brown)">${arrow(sum.amount, sum.prevAmount)}${maskAmount(sum.amount)}${prevSpan(sum.prevAmount, '円')}</td>
                         </tr>`;
-                    }).join('')}
+                      return rowsHtml + totalRow;
+                    })()}
                   </tbody>
                 </table>
               ` : `<div style="padding:20px;text-align:center;color:#aaa">この月の記録はありません</div>`}
