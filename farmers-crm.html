@@ -1071,15 +1071,17 @@ function renderSalesReport() {
     });
   });
 
-  // 当月の商品別内訳
+  // 選択月の商品別内訳（日別グラフの月選択と連動）
   const todayObj = new Date(todayLocal());
   const isCurrentYear = todayObj.getFullYear() === salesYear;
   const currentMonth = isCurrentYear ? todayObj.getMonth() + 1 : null;
-  const thisMonthBreakdown = currentMonth ? Object.entries(productMonthly).map(([p, arr]) => ({
+  const breakdownMonth = selectedSalesMonth;
+  const isThisMonth = isCurrentYear && currentMonth === breakdownMonth;
+  const monthBreakdown = Object.entries(productMonthly).map(([p, arr]) => ({
     product: p,
-    count: arr[currentMonth-1].count,
-    amount: arr[currentMonth-1].amount
-  })).filter(x => x.count > 0).sort((a,b) => b.amount - a.amount) : [];
+    count: arr[breakdownMonth-1].count,
+    amount: arr[breakdownMonth-1].amount
+  })).filter(x => x.count > 0).sort((a,b) => b.amount - a.amount);
 
   const isFinal = salesMode === 'final';
   const hasImported = !!(importedSalesData && importedSalesData.orders && importedSalesData.orders.length);
@@ -1292,14 +1294,13 @@ function renderSalesReport() {
                   ${dots}
                   ${xLabels}
                 </svg>
-                <div style="font-size:0.7rem;color:#aaa;margin-top:4px;text-align:center">日付（点にカーソルを合わせると詳細）</div>
               </div>`;
           })()}
 
-          ${currentMonth && !isFinal ? `
+          ${!isFinal ? `
             <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px">
-              <div style="padding:14px 18px;font-weight:700;color:var(--brown);border-bottom:1px solid var(--border)">🔍 今月（${currentMonth}月）の動き</div>
-              ${thisMonthBreakdown.length ? `
+              <div style="padding:14px 18px;font-weight:700;color:var(--brown);border-bottom:1px solid var(--border)">🔍 ${isThisMonth?'今月':salesYear+'年'+breakdownMonth+'月'}の動き</div>
+              ${monthBreakdown.length ? `
                 <table style="width:100%;border-collapse:collapse;font-size:0.88rem">
                   <thead><tr style="background:var(--green-light);font-size:0.78rem;color:var(--gray)">
                     <th style="padding:8px 14px;text-align:left">商品</th>
@@ -1307,7 +1308,7 @@ function renderSalesReport() {
                     <th style="padding:8px 14px;text-align:right">売上</th>
                   </tr></thead>
                   <tbody>
-                    ${thisMonthBreakdown.map(b => `
+                    ${monthBreakdown.map(b => `
                       <tr>
                         <td style="padding:8px 14px"><span style="display:inline-block;width:8px;height:8px;background:${getProductColor(b.product)};border-radius:2px;margin-right:6px"></span>${escHtml(b.product)}</td>
                         <td style="padding:8px 14px;text-align:right">${maskCount(b.count, '個')}</td>
@@ -1315,7 +1316,7 @@ function renderSalesReport() {
                       </tr>`).join('')}
                   </tbody>
                 </table>
-              ` : `<div style="padding:20px;text-align:center;color:#aaa">まだ今月の記録がありません</div>`}
+              ` : `<div style="padding:20px;text-align:center;color:#aaa">この月の記録はありません</div>`}
             </div>
           ` : ''}` ;
       })()}
