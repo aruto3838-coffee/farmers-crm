@@ -873,6 +873,7 @@ function renderShipmentList() {
 let salesYear = 2026;
 let salesMode = 'speed'; // 'speed'=顧客管理から（速報値）, 'final'=CSV取込（確定値）
 let chartMode = 'total'; // 'total'=全体合計, 'product'=商品別
+let selectedSalesMonth = new Date().getMonth() + 1; // 日別グラフ用の選択月（1-12）
 
 // 商品ごとの色（グラフ用）
 const PRODUCT_COLORS = {
@@ -1214,6 +1215,79 @@ function renderSalesReport() {
             <div style="display:flex;align-items:flex-end;gap:4px">${bars}</div>
             ${legend}
           </div>
+
+          ${(() => {
+            // 日別集計（指定月）
+            const daysInMonth = new Date(salesYear, selectedSalesMonth, 0).getDate();
+            const daily = Array.from({length: daysInMonth}, (_, i) => ({day: i+1, count: 0, amount: 0}));
+            const ymPrefix = `${salesYear}-${String(selectedSalesMonth).padStart(2,'0')}-`;
+            if (isFinal && hasImported) {
+              importedSalesData.orders.forEach(o => {
+                if (!o.date || !o.date.startsWith(ymPrefix)) return;
+                const day = parseInt(o.date.slice(8,10));
+                if (day >= 1 && day <= daysInMonth) {
+                  daily[day-1].count++;
+                  daily[day-1].amount += parseInt(o.amount) || 0;
+                }
+              });
+            } else {
+              customers.forEach(c => {
+                (c.history||[]).forEach(h => {
+                  if (!h.date || !h.amount) return;
+                  if (!h.date.startsWith(ymPrefix)) return;
+                  const day = parseInt(h.date.slice(8,10));
+                  if (day >= 1 && day <= daysInMonth) {
+                    daily[day-1].count++;
+                    daily[day-1].amount += parseInt(h.amount) || 0;
+                  }
+                });
+              });
+            }
+            const dailyMax = Math.max(...daily.map(d => d.amount), 1);
+            const dailyTotal = daily.reduce((s,d) => s + d.amount, 0);
+
+            // SVG折れ線グラフ
+            const W = 600, H = 160, padL = 30, padR = 10, padT = 14, padB = 22;
+            const chartW = W - padL - padR, chartH = H - padT - padB;
+            const xStep = chartW / Math.max(daysInMonth - 1, 1);
+            const points = daily.map((d, i) => {
+              const x = padL + xStep * i;
+              const y = padT + chartH - (d.amount / dailyMax) * chartH;
+              return { x, y, day: d.day, amount: d.amount, count: d.count };
+            });
+            const polyline = points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+            const dots = points.filter(p => p.amount > 0).map(p =>
+              `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="${isFinal?'var(--green)':'#e0c068'}"><title>${p.day}日: ¥${p.amount.toLocaleString()} (${p.count}件)</title></circle>`
+            ).join('');
+            // X軸ラベル（5日刻み + 末日）
+            const xLabels = [1,5,10,15,20,25,daysInMonth].filter((v, i, a) => a.indexOf(v) === i && v <= daysInMonth)
+              .map(d => {
+                const x = padL + xStep * (d - 1);
+                return `<text x="${x.toFixed(1)}" y="${(H-6)}" text-anchor="middle" font-size="10" fill="#888">${d}</text>`;
+              }).join('');
+            const monthOptions = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']
+              .map((m, i) => `<option value="${i+1}" ${selectedSalesMonth===i+1?'selected':''}>${m}</option>`).join('');
+
+            return `
+              <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:20px">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+                  <div style="font-size:0.9rem;font-weight:700;color:var(--brown)">📈 日別売上（${salesYear}年）</div>
+                  <select onchange="selectedSalesMonth=parseInt(this.value);renderSalesReport()"
+                    style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.78rem;cursor:pointer">
+                    ${monthOptions}
+                  </select>
+                </div>
+                <div style="font-size:0.78rem;color:var(--gray);margin-bottom:6px">${selectedSalesMonth}月合計: ${maskAmount(dailyTotal)}</div>
+                <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">
+                  <line x1="${padL}" y1="${padT+chartH}" x2="${W-padR}" y2="${padT+chartH}" stroke="#ddd" stroke-width="1"/>
+                  <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT+chartH}" stroke="#ddd" stroke-width="1"/>
+                  ${dailyTotal > 0 ? `<polyline points="${polyline}" fill="none" stroke="${isFinal?'var(--green)':'#e0c068'}" stroke-width="2"/>` : ''}
+                  ${dots}
+                  ${xLabels}
+                </svg>
+                <div style="font-size:0.7rem;color:#aaa;margin-top:4px;text-align:center">日付（点にカーソルを合わせると詳細）</div>
+              </div>`;
+          })()}
 
           ${currentMonth && !isFinal ? `
             <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px">
