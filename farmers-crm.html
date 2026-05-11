@@ -1254,36 +1254,25 @@ function renderSalesReport() {
                 });
               });
             }
-            const dailyMaxAmount = Math.max(...daily.map(d => d.amount), 1);
             const dailyMaxCount = Math.max(...daily.map(d => d.count), 1);
             const dailyTotalAmount = daily.reduce((s,d) => s + d.amount, 0);
             const dailyTotalCount = daily.reduce((s,d) => s + d.count, 0);
 
-            // SVG: 件数は棒グラフ、金額は折れ線（2軸）
-            const W = 600, H = 180, padL = 30, padR = 30, padT = 18, padB = 22;
+            // SVG: 件数の棒グラフ
+            const W = 600, H = 180, padL = 30, padR = 10, padT = 18, padB = 22;
             const chartW = W - padL - padR, chartH = H - padT - padB;
             const xStep = chartW / Math.max(daysInMonth - 1, 1);
             const barW = Math.max(xStep * 0.6, 4);
 
-            // 件数の棒
             const bars = daily.map((d, i) => {
               if (d.count === 0) return '';
               const x = padL + xStep * i - barW / 2;
               const h = (d.count / dailyMaxCount) * chartH;
               const y = padT + chartH - h;
-              return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" fill="#bcd9c4" rx="2"><title>${d.day}日: ${d.count}件</title></rect>`;
+              const cx = padL + xStep * i;
+              const label = `<text x="${cx.toFixed(1)}" y="${(y - 3).toFixed(1)}" text-anchor="middle" font-size="9" fill="#555" font-weight="600">${demoMode?'■':d.count}</text>`;
+              return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" fill="${isFinal?'var(--green)':'#b8860b'}" rx="2"><title>${d.day}日: ${d.count}件</title></rect>${label}`;
             }).join('');
-
-            // 金額の折れ線
-            const points = daily.map((d, i) => {
-              const x = padL + xStep * i;
-              const y = padT + chartH - (d.amount / dailyMaxAmount) * chartH;
-              return { x, y, day: d.day, amount: d.amount, count: d.count };
-            });
-            const polyline = points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-            const dots = points.filter(p => p.amount > 0).map(p =>
-              `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="${isFinal?'var(--green)':'#b8860b'}"><title>${p.day}日: ¥${p.amount.toLocaleString()} (${p.count}件)</title></circle>`
-            ).join('');
 
             // X軸ラベル（5日刻み + 末日）
             const xLabels = [1,5,10,15,20,25,daysInMonth].filter((v, i, a) => a.indexOf(v) === i && v <= daysInMonth)
@@ -1291,11 +1280,14 @@ function renderSalesReport() {
                 const x = padL + xStep * (d - 1);
                 return `<text x="${x.toFixed(1)}" y="${(H-6)}" text-anchor="middle" font-size="10" fill="#888">${d}</text>`;
               }).join('');
-            // Y軸ラベル（左=件数、右=金額の最大値だけ）
+            // Y軸ラベル（件数）
+            const yMax = dailyMaxCount;
+            const yMid = Math.ceil(yMax / 2);
             const yLabels = `
-              <text x="${padL-4}" y="${padT+4}" text-anchor="end" font-size="9" fill="#888">${demoMode?'■':dailyMaxCount+'件'}</text>
-              <text x="${padL-4}" y="${padT+chartH}" text-anchor="end" font-size="9" fill="#888">0</text>
-              <text x="${W-padR+4}" y="${padT+4}" text-anchor="start" font-size="9" fill="#888">${demoMode?'¥■':'¥'+(dailyMaxAmount>=10000?Math.round(dailyMaxAmount/1000)+'k':dailyMaxAmount)}</text>
+              <text x="${padL-4}" y="${(padT+4).toFixed(1)}" text-anchor="end" font-size="9" fill="#888">${demoMode?'■':yMax}</text>
+              <text x="${padL-4}" y="${(padT + chartH/2 + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#888">${demoMode?'■':yMid}</text>
+              <text x="${padL-4}" y="${(padT+chartH).toFixed(1)}" text-anchor="end" font-size="9" fill="#888">0</text>
+              <text x="${(padL-4)}" y="${(padT-6).toFixed(1)}" text-anchor="end" font-size="9" fill="#aaa">件</text>
             `;
             return `
               <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:20px">
@@ -1307,20 +1299,11 @@ function renderSalesReport() {
                     <button onclick="changeSalesMonth(1)" style="background:white;border:1px solid var(--border);border-radius:6px;width:30px;height:30px;cursor:pointer;font-size:0.85rem;padding:0">▶</button>
                   </div>
                 </div>
-                <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.78rem;color:var(--gray);margin-bottom:6px;flex-wrap:wrap;gap:8px">
-                  <div>${selectedSalesMonth}月合計: ${maskCount(dailyTotalCount)} / ${maskAmount(dailyTotalAmount)}</div>
-                  <div style="display:flex;gap:10px;font-size:0.7rem">
-                    <span style="display:inline-flex;align-items:center;gap:3px"><span style="width:10px;height:10px;background:#bcd9c4;display:inline-block;border-radius:2px"></span>件数</span>
-                    <span style="display:inline-flex;align-items:center;gap:3px"><span style="width:10px;height:10px;background:${isFinal?'var(--green)':'#b8860b'};display:inline-block;border-radius:50%"></span>金額</span>
-                  </div>
-                </div>
+                <div style="font-size:0.78rem;color:var(--gray);margin-bottom:6px">${selectedSalesMonth}月合計: ${maskCount(dailyTotalCount)}（${maskAmount(dailyTotalAmount)}）</div>
                 <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">
                   <line x1="${padL}" y1="${padT+chartH}" x2="${W-padR}" y2="${padT+chartH}" stroke="#ddd" stroke-width="1"/>
                   <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT+chartH}" stroke="#ddd" stroke-width="1"/>
-                  <line x1="${W-padR}" y1="${padT}" x2="${W-padR}" y2="${padT+chartH}" stroke="#ddd" stroke-width="1"/>
                   ${bars}
-                  ${dailyTotalAmount > 0 ? `<polyline points="${polyline}" fill="none" stroke="${isFinal?'var(--green)':'#b8860b'}" stroke-width="2"/>` : ''}
-                  ${dots}
                   ${xLabels}
                   ${yLabels}
                 </svg>
