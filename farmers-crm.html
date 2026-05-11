@@ -609,14 +609,32 @@
   </div>
 </div>
 
+<!-- 一括追跡番号反映モーダル -->
+<div class="modal-overlay" id="bulkTrackingModal">
+  <div class="modal" style="max-width:600px">
+    <h2>📥 ClickPostから追跡番号を一括反映</h2>
+    <div style="font-size:0.82rem;color:var(--gray);margin-bottom:10px">
+      ClickPostの「マイページ」で表全体をコピーして下に貼り付けてください。氏名で照合します。
+    </div>
+    <div class="form-group">
+      <label>ClickPostの表をペースト</label>
+      <textarea id="bulkTrackingInput" rows="6" oninput="previewBulkTracking()" placeholder="2026/05/11 10:48  628598182321  今泉宝  コーヒー豆..." style="width:100%;font-family:monospace;font-size:0.78rem"></textarea>
+    </div>
+    <div id="bulkTrackingPreview" style="margin-top:10px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeBulkTrackingModal()">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <!-- 発送連絡モーダル -->
 <div class="modal-overlay" id="shipNotifyModal">
   <div class="modal" style="max-width:520px">
     <h2 id="shipNotifyTitle">📨 発送連絡</h2>
     <div class="form-group">
-      <label>追跡番号</label>
+      <label>追跡番号（3小口など複数の場合はカンマ区切り）</label>
       <div style="display:flex;gap:6px;align-items:stretch">
-        <input type="text" id="shipNotifyTracking" placeholder="例：628590892252" style="flex:1" oninput="updateShipNotifyTrackingURL()" onblur="saveShipNotifyTracking()">
+        <input type="text" id="shipNotifyTracking" placeholder="例：628590892252, 628590892263" style="flex:1" oninput="updateShipNotifyTrackingURL()" onblur="saveShipNotifyTracking()">
         <button type="button" onclick="pasteShipTracking()" title="クリップボードから取り込む"
           style="background:white;border:1px solid var(--green-mid);color:var(--green);border-radius:6px;padding:0 12px;cursor:pointer;font-size:0.78rem;white-space:nowrap">📋 貼り付け</button>
       </div>
@@ -895,6 +913,10 @@ function renderShipmentList() {
         <button onclick="markSelectedAsShipped()"
           style="background:var(--green);color:white;border:none;border-radius:8px;padding:6px 16px;font-size:0.85rem;font-weight:600;cursor:pointer">
           ✅ 発送済みにする
+        </button>
+        <button onclick="openBulkTrackingModal()" title="ClickPost表から追跡番号を一括反映"
+          style="background:white;color:var(--green);border:1px solid var(--green-mid);border-radius:8px;padding:6px 16px;font-size:0.85rem;font-weight:600;cursor:pointer">
+          📥 追跡番号を一括反映
         </button>
       </div>
       <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden">
@@ -1704,6 +1726,158 @@ function renderAnalytics() {
     </div>`;
 }
 
+// ===== ClickPost 表からの追跡番号一括反映 =====
+function openBulkTrackingModal() {
+  const stored = (() => {
+    try { return JSON.parse(localStorage.getItem('clickpostBatch') || 'null'); }
+    catch (e) { return null; }
+  })();
+  if (!stored || !stored.items || !stored.items.length) {
+    alert('反映できるマッピングがありません。\n先に「クリックポスト用CSV」を作成してください。');
+    return;
+  }
+  const ageHours = (Date.now() - stored.timestamp) / 3600000;
+  if (ageHours >= 24) {
+    if (!confirm(`保存されたマッピングが${Math.round(ageHours)}時間前のもので、有効期限を過ぎています。\nそれでも続けますか？`)) return;
+  }
+  document.getElementById('bulkTrackingInput').value = '';
+  document.getElementById('bulkTrackingPreview').innerHTML =
+    `<div style="font-size:0.8rem;color:var(--gray)">マッピング: ${stored.items.length}件保存済み（${Math.round(ageHours)}時間前）</div>`;
+  document.getElementById('bulkTrackingModal').classList.add('open');
+}
+
+function parseClickpostTable(text) {
+  const rows = [];
+  const lines = text.split(/\r?\n/);
+  for (const line of lines) {
+    const trackingMatch = line.match(/(\d{12})/);
+    if (!trackingMatch) continue;
+    const tracking = trackingMatch[1];
+    // 日付パターンと追跡番号を除去
+    let rest = line
+      .replace(/\d{4}\/\d{1,2}\/\d{1,2}\s*\d{0,2}:?\d{0,2}/g, '')
+      .replace(tracking, '')
+      .trim();
+    // タブ・連続スペース・全角スペースで分割
+    const parts = rest.split(/[\t　]+|\s{2,}/).map(s => s.trim()).filter(Boolean);
+    const name = parts[0] || '';
+    const content = parts[1] || '';
+    rows.push({ tracking, name, content });
+  }
+  return rows;
+}
+
+function previewBulkTracking() {
+  const text = document.getElementById('bulkTrackingInput').value;
+  const stored = JSON.parse(localStorage.getItem('clickpostBatch') || 'null');
+  if (!stored || !text.trim()) return;
+
+  const parsed = parseClickpostTable(text);
+  if (!parsed.length) {
+    document.getElementById('bulkTrackingPreview').innerHTML =
+      `<div style="color:#c62828;font-size:0.85rem">追跡番号が見つかりませんでした。クリックポストの表をコピーして貼り付けてください</div>`;
+    return;
+  }
+
+  // マッピング照合
+  const remaining = [...parsed];
+  const matchedGroups = []; // { historyId, customerId, name, trackings: [], content }
+  for (const item of stored.items) {
+    const matches = remaining.filter(r => r.name === item.name);
+    if (matches.length === 0) continue;
+    matchedGroups.push({
+      historyId: item.historyId,
+      customerId: item.customerId,
+      name: item.name,
+      trackings: matches.map(m => m.tracking),
+      content: item.content
+    });
+    matches.forEach(m => {
+      const idx = remaining.indexOf(m);
+      if (idx >= 0) remaining.splice(idx, 1);
+    });
+  }
+
+  // プレビュー描画
+  const previewRows = matchedGroups.map(g => {
+    const c = getCustomer(g.customerId);
+    const h = c ? (c.history || []).find(x => x.id === g.historyId) : null;
+    if (!c || !h) return '';
+    const customerLabel = c.libeName ? `${escHtml(c.libeName)}（${escHtml(c.name||'')}）` : escHtml(c.name || '');
+    const existingNote = h.trackingNos && h.trackingNos.length
+      ? `<div style="font-size:0.7rem;color:#c62828;margin-top:2px">⚠️ 既存値あり（${h.trackingNos.length}件）→ 上書きされます</div>`
+      : (h.trackingNo ? `<div style="font-size:0.7rem;color:#c62828;margin-top:2px">⚠️ 既存値あり → 上書きされます</div>` : '');
+    return `
+      <tr>
+        <td style="padding:6px 10px;font-size:0.85rem">
+          ${customerLabel}
+          <div style="font-size:0.72rem;color:#888">[${escHtml(g.name)}] ${escHtml(g.content)}</div>
+          ${existingNote}
+        </td>
+        <td style="padding:6px 10px;font-size:0.78rem;color:var(--brown)">${g.trackings.map(t => `<div>${t}</div>`).join('')}</td>
+      </tr>`;
+  }).filter(Boolean).join('');
+
+  const unmatchedRows = remaining.map(r => `
+    <tr style="background:#fff3e0">
+      <td style="padding:6px 10px;font-size:0.85rem;color:#c62828">未マッチ：${escHtml(r.name)}</td>
+      <td style="padding:6px 10px;font-size:0.78rem">${r.tracking}</td>
+    </tr>`).join('');
+
+  document.getElementById('bulkTrackingPreview').innerHTML = `
+    <div style="margin-bottom:8px;font-size:0.82rem">
+      <span style="color:var(--green);font-weight:700">✅ マッチ: ${matchedGroups.length}件</span>
+      ${remaining.length ? `<span style="color:#c62828;margin-left:12px">⚠️ 未マッチ: ${remaining.length}件</span>` : ''}
+    </div>
+    <div style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:6px">
+      <table style="width:100%;border-collapse:collapse;font-size:0.85rem">
+        <thead><tr style="background:var(--green-light);position:sticky;top:0">
+          <th style="padding:6px 10px;text-align:left">お客様</th>
+          <th style="padding:6px 10px;text-align:left">追跡番号</th>
+        </tr></thead>
+        <tbody>${previewRows}${unmatchedRows}</tbody>
+      </table>
+    </div>
+    <button onclick="applyBulkTracking()" id="bulkTrackingApplyBtn" ${matchedGroups.length===0?'disabled':''}
+      style="margin-top:12px;background:var(--green);color:white;border:none;border-radius:6px;padding:10px 20px;font-size:0.9rem;font-weight:700;cursor:${matchedGroups.length?'pointer':'not-allowed'};opacity:${matchedGroups.length?1:0.5}">
+      ✅ ${matchedGroups.length}件を反映する
+    </button>
+  `;
+  // matchedGroups を一時保管（反映ボタンで使う）
+  window._bulkTrackingMatched = matchedGroups;
+}
+
+async function applyBulkTracking() {
+  const groups = window._bulkTrackingMatched || [];
+  if (!groups.length) return;
+  if (!confirm(`${groups.length}件の追跡番号を反映します。よろしいですか？`)) return;
+
+  const customerMap = new Map();
+  groups.forEach(g => {
+    const c = getCustomer(g.customerId);
+    if (!c) return;
+    const h = (c.history || []).find(x => x.id === g.historyId);
+    if (!h) return;
+    h.trackingNos = g.trackings;
+    // 後方互換: 1件のみなら trackingNo にも入れる
+    h.trackingNo = g.trackings[0];
+    customerMap.set(c.id, c);
+  });
+  for (const c of customerMap.values()) {
+    await dbSave(c);
+  }
+  // 反映済みなので localStorage のマッピングを削除
+  localStorage.removeItem('clickpostBatch');
+  window._bulkTrackingMatched = null;
+  closeBulkTrackingModal();
+  showToast(`✅ ${groups.length}件の追跡番号を反映しました`);
+  if (currentTab === 'ship') renderShipmentList();
+}
+
+function closeBulkTrackingModal() {
+  document.getElementById('bulkTrackingModal').classList.remove('open');
+}
+
 // ===== 発送連絡 =====
 function getGreetingByHour() {
   const h = new Date().getHours();
@@ -1725,10 +1899,14 @@ function buildShipMessage(pattern) {
   return `${greet}\n大変お待たせいたしました！\nクリックポストにて発送いたしました。\nお届けまでもう少々お待ちくださいませ☕️✨\n引き続きよろしくお願いいたします！`;
 }
 
-function buildTrackingURL(trackingNo) {
-  const clean = (trackingNo||'').replace(/\s+/g, '').replace(/[^\d]/g, '');
-  if (!clean) return '追跡：';
-  return `追跡：https://trackings.post.japanpost.jp/services/srv/search/direct?searchKind=S002&locale=ja&reqCodeNo1=%22${clean}%22`;
+function buildTrackingURL(trackingNoInput) {
+  // カンマ・空白・改行で複数番号を分割
+  const tokens = (trackingNoInput||'').split(/[\s,、]+/).filter(Boolean);
+  const numbers = tokens
+    .map(t => (t.match(/\d{10,}/) || [t.replace(/[^\d]/g, '')])[0])
+    .filter(n => n && n.length >= 10);
+  if (!numbers.length) return '追跡：';
+  return numbers.map(n => `追跡：https://trackings.post.japanpost.jp/services/srv/search/direct?searchKind=S002&locale=ja&reqCodeNo1=%22${n}%22`).join('\n');
 }
 
 let _shipNotifyCid = null;
@@ -1743,7 +1921,11 @@ function openShipNotify(cid, hid) {
   const customerName = c.libeName || c.name || '';
 
   document.getElementById('shipNotifyTitle').textContent = `📨 発送連絡 - ${customerName}`;
-  document.getElementById('shipNotifyTracking').value = h.trackingNo || '';
+  // 配列または単一文字列の追跡番号に対応
+  const trackingArr = Array.isArray(h.trackingNos) && h.trackingNos.length
+    ? h.trackingNos
+    : (h.trackingNo ? [h.trackingNo] : []);
+  document.getElementById('shipNotifyTracking').value = trackingArr.join(', ');
   updateShipNotifyMessage('standard');
   document.getElementById('shipNotifyModal').classList.add('open');
 }
@@ -1799,12 +1981,18 @@ async function pasteShipTracking() {
 
 async function saveShipNotifyTracking() {
   if (!_shipNotifyCid || !_shipNotifyHid) return;
-  const trackingNo = document.getElementById('shipNotifyTracking').value.trim();
+  const inputVal = document.getElementById('shipNotifyTracking').value.trim();
+  const tokens = inputVal.split(/[\s,、]+/).filter(Boolean);
+  const numbers = tokens
+    .map(t => (t.match(/\d{10,}/) || [t.replace(/[^\d]/g, '')])[0])
+    .filter(n => n && n.length >= 10);
   const c = getCustomer(_shipNotifyCid);
   const h = c.history.find(x => x.id === _shipNotifyHid);
   if (!h) return;
-  if (trackingNo === (h.trackingNo || '')) return; // 変更なし
-  h.trackingNo = trackingNo;
+  const existing = Array.isArray(h.trackingNos) ? h.trackingNos : (h.trackingNo ? [h.trackingNo] : []);
+  if (JSON.stringify(numbers) === JSON.stringify(existing)) return;
+  h.trackingNos = numbers;
+  h.trackingNo = numbers[0] || '';
   await dbSave(c);
   showToast('💾 追跡番号を保存しました');
 }
@@ -2115,12 +2303,30 @@ async function generateClickpostCSV(input) {
         }
       }
 
+      // CRMの履歴ID/顧客IDを特定（発送連絡の追跡番号紐付け用）
+      let matchedCustomerId = null;
+      let matchedHistoryId = null;
+      const candidateCustomer = customers.find(c =>
+        (profileUrl && c.profileUrl === profileUrl) ||
+        (libeName && c.libeName === libeName) ||
+        (name && c.name === name)
+      );
+      if (candidateCustomer) {
+        matchedCustomerId = candidateCustomer.id;
+        // 未発送の履歴のうち、注文日が最新のものを採用（FIFOではなくLIFO）
+        const unshipped = (candidateCustomer.history || [])
+          .filter(h => !h.shipped)
+          .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        if (unshipped.length) matchedHistoryId = unshipped[0].id;
+      }
       _clickpostData.push({
         zip, name, libeName, profileUrl, honorific: '様',
         address1, address2, address3, address4,
         content, contentSource, matchedBy,
         selected: true,
-        addrOriginal: addrFull
+        addrOriginal: addrFull,
+        customerId: matchedCustomerId,
+        historyId: matchedHistoryId
       });
     }
 
@@ -2338,6 +2544,31 @@ function downloadClickpostCSV() {
   if (demoMode) { alert('デモモード中はCSVをダウンロードできません'); return; }
   const selected = _clickpostData.filter(r => r.selected);
   if (!selected.length) { alert('送り先を1件以上選択してください'); return; }
+
+  // 追跡番号一括反映用のマッピングを localStorage に保存（24時間で期限切れ）
+  // 個人情報は最小限：履歴ID・顧客ID・氏名（照合用）のみ。住所・電話は保存しない。
+  const existing = (() => {
+    try { return JSON.parse(localStorage.getItem('clickpostBatch') || 'null'); }
+    catch (e) { return null; }
+  })();
+  if (existing && existing.items && existing.items.length) {
+    const ageHours = (Date.now() - existing.timestamp) / 3600000;
+    if (ageHours < 24) {
+      if (!confirm(`前回保存した追跡反映用マッピング（${existing.items.length}件、${Math.round(ageHours)}時間前）が未反映です。\n上書きしてよろしいですか？`)) {
+        return;
+      }
+    }
+  }
+  const batchItems = selected.filter(r => r.historyId && r.customerId).map(r => ({
+    historyId: r.historyId,
+    customerId: r.customerId,
+    name: r.name,           // ClickPostに送る氏名（照合用・家族あての場合は家族名）
+    content: r.content
+  }));
+  localStorage.setItem('clickpostBatch', JSON.stringify({
+    timestamp: Date.now(),
+    items: batchItems
+  }));
   // ClickPost公式仕様: Shift-JIS / CRLF / 列順 = 郵便番号, 氏名, 敬称, 住所1-4行目, 内容品
   const header = 'お届け先郵便番号,お届け先氏名,お届け先敬称,お届け先住所1行目,お届け先住所2行目,お届け先住所3行目,お届け先住所4行目,内容品';
   // 値はカンマ・ダブルクォート・改行を含む場合のみクォート
