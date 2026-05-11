@@ -1216,7 +1216,12 @@ function renderSalesReport() {
         return `
           <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:20px">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-              <div style="font-size:0.9rem;font-weight:700;color:var(--brown)">📊 月別売上グラフ</div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="font-size:0.9rem;font-weight:700;color:var(--brown)">📊 月別売上グラフ</div>
+                <button onclick="salesYear--;renderSalesReport()" style="background:white;border:1px solid var(--border);border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:0.75rem;padding:0">◀</button>
+                <div style="font-size:0.82rem;font-weight:600;color:var(--brown);min-width:48px;text-align:center">${salesYear}年</div>
+                <button onclick="salesYear++;renderSalesReport()" style="background:white;border:1px solid var(--border);border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:0.75rem;padding:0">▶</button>
+              </div>
               <select onchange="chartMode=this.value;renderSalesReport()" ${isFinal?'disabled title="商品別は速報値モードでのみ利用できます"':''}
                 style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:0.78rem;cursor:${isFinal?'not-allowed':'pointer'};opacity:${isFinal?'0.5':'1'}">
                 <option value="total" ${chartMode==='total'?'selected':''}>全体合計</option>
