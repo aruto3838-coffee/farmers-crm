@@ -1594,7 +1594,16 @@ function renderAnalytics() {
             }
           });
         });
-        const dailyMaxCount = Math.max(...daily.map(d => d.count), 1);
+        // 縦軸スケールは年間の日次最大件数で統一（月を切り替えても比較しやすく）
+        const yearDailyCounts = {};
+        customers.forEach(c => {
+          (c.history||[]).forEach(h => {
+            if (!h.date || !h.amount) return;
+            if (parseInt(h.date.slice(0,4)) !== salesYear) return;
+            yearDailyCounts[h.date] = (yearDailyCounts[h.date] || 0) + 1;
+          });
+        });
+        const dailyMaxCount = Math.max(1, ...Object.values(yearDailyCounts));
         const dailyTotalAmount = daily.reduce((s,d) => s + d.amount, 0);
         const dailyTotalCount = daily.reduce((s,d) => s + d.count, 0);
         const W = 600, H = 180, padL = 32, padR = 12, padT = 18, padB = 22;
