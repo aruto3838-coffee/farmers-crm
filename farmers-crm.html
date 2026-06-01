@@ -1067,8 +1067,22 @@ function detectSalesSource(filename) {
 
 // CSVファイルから売上データを取り込む
 async function handleSalesCSVImport(input) {
-  const files = Array.from(input.files);
+  let files = Array.from(input.files);
   if (!files.length) return;
+
+  // 同じ取り込み元のファイルが複数ある場合、ファイル名で辞書順最大（=最新の日付）だけを残す
+  const filesBySource = new Map();
+  files.forEach(f => {
+    const src = detectSalesSource(f.name);
+    if (!filesBySource.has(src) || f.name > filesBySource.get(src).name) {
+      filesBySource.set(src, f);
+    }
+  });
+  const skipped = files.filter(f => !Array.from(filesBySource.values()).includes(f));
+  files = Array.from(filesBySource.values());
+  if (skipped.length) {
+    showToast(`同じ取り込み元の古いファイル${skipped.length}件は除外しました`);
+  }
 
   const status = document.getElementById('salesImportStatus');
   if (status) status.textContent = '処理中...';
