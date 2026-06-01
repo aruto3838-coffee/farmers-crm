@@ -1064,7 +1064,7 @@ async function clearImportedSales(targetSource) {
   const sources = targetSource ? [targetSource] : null;
   const sourceLabel = targetSource === 'rebecity' ? 'リベシティ市場分'
                      : targetSource === 'farmers' ? 'ファーマーズマーケット分'
-                     : '全て';
+                     : '全て（リベシティ市場・ファーマーズマーケット両方）';
 
   // 全部削除のときは強めの警告
   if (!targetSource) {
@@ -1320,8 +1320,12 @@ function renderSalesReport() {
             <div>最終更新: ${lastUpdated}</div>
             <div style="margin-top:2px">取込ファイル: ${escHtml(importedFileNames)}</div>
             <div style="margin-top:2px">取込件数: ${importedSalesData.orders.length}件</div>
-            <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
-              <button onclick="clearImportedSales('rebecity')" style="background:white;border:1px solid #e65100;color:#e65100;border-radius:6px;padding:5px 12px;font-size:0.75rem;cursor:pointer">🗑 リベシティ分のみ削除</button>
+            <div style="margin-top:10px;padding:8px 10px;background:#fff8e1;border-left:3px solid #f0a000;border-radius:4px;font-size:0.72rem;color:#665500;line-height:1.5">
+              💡 通常の月次更新では削除は不要です。最新のリベシティ市場CSVを「📂 CSVを選択」からアップロードすれば自動で置き換わります。<br>
+              下の削除ボタンは <strong>正しくアップロードされない・データがおかしくなった時の緊急用</strong> です。
+            </div>
+            <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+              <button onclick="clearImportedSales('rebecity')" style="background:white;border:1px solid #e65100;color:#e65100;border-radius:6px;padding:5px 12px;font-size:0.75rem;cursor:pointer">🗑 リベシティ市場分のみ削除</button>
               <button onclick="clearImportedSales()" style="background:white;border:1px solid #999;color:#999;border-radius:6px;padding:5px 12px;font-size:0.72rem;cursor:pointer" title="ファーマーズマーケット分も含めて全部消えます">全部削除</button>
             </div>
           </div>
