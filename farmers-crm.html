@@ -1319,7 +1319,7 @@ function renderSalesReport() {
           <div style="margin-top:10px;font-size:0.75rem;color:var(--gray)">
             <div>最終更新: ${lastUpdated}</div>
             <div style="margin-top:2px">取込ファイル: ${escHtml(importedFileNames)}</div>
-            <div style="margin-top:2px">取込件数: ${importedSalesData.orders.length}件</div>
+            <div style="margin-top:2px">取込件数: ${demoMode ? '■■' : importedSalesData.orders.length + '件'}</div>
             <div style="margin-top:10px;padding:8px 10px;background:#fff8e1;border-left:3px solid #f0a000;border-radius:4px;font-size:0.72rem;color:#665500;line-height:1.5">
               💡 通常の月次更新では削除は不要です。最新のリベシティ市場CSVを「📂 CSVを選択」からアップロードすれば自動で置き換わります。<br>
               下の削除ボタンは <strong>正しくアップロードされない・データがおかしくなった時の緊急用</strong> です。
@@ -3282,7 +3282,9 @@ function renderCustomerList() {
   });
   const isFiltered = q || productFilter !== 'all' || shipDateFilter;
   document.getElementById('customerCount').textContent =
-    `全 ${customers.length} 名${isFiltered ? `（${filteredByProduct.length} 件）` : ''}`;
+    demoMode
+      ? `全 ■■ 名${isFiltered ? '（■■ 件）' : ''}`
+      : `全 ${customers.length} 名${isFiltered ? `（${filteredByProduct.length} 件）` : ''}`;
 
   const list = document.getElementById('customerList');
   if (!filteredByProduct.length) {
@@ -3321,7 +3323,7 @@ function renderCustomerList() {
           <div class="customer-item-name">${c.libeName?`🌿 ${displayLibeName(c)} <span style="font-size:0.72rem;color:#aaa;font-weight:400">(${maskedName(c)})</span>`:maskedName(c)}</div>
           <div class="customer-item-sub">${last ? '最終: '+formatDate(last) : 'まだ記録なし'}</div>
         </div>
-        ${cnt ? `<span class="customer-badge">${cnt}回</span>` : ''}
+        ${cnt ? `<span class="customer-badge">${demoMode ? '■回' : cnt + '回'}</span>` : ''}
       </div>`;
   }).join('');
 }
@@ -3400,8 +3402,8 @@ function renderDetail() {
       </div>
 
       <div class="stats-row">
-        <div class="stat-card"><div class="val">${history.length}</div><div class="lbl">購入回数</div></div>
-        <div class="stat-card"><div class="val">${history.length?formatDate(history[0].date):'-'}</div><div class="lbl">最終注文日</div></div>
+        <div class="stat-card"><div class="val">${demoMode ? '■' : history.length}</div><div class="lbl">購入回数</div></div>
+        <div class="stat-card"><div class="val">${demoMode ? '■■■' : (history.length?formatDate(history[0].date):'-')}</div><div class="lbl">最終注文日</div></div>
       </div>
 
       ${c.memo?`
