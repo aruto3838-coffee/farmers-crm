@@ -1058,14 +1058,53 @@ function changeSalesMonth(delta) {
   else renderSalesReport();
 }
 
-// 取り込み済み売上データを全削除
-async function clearImportedSales() {
-  if (!confirm('取り込み済みの売上データを全て削除します。よろしいですか？\n（顧客管理タブの履歴は影響を受けません）')) return;
+// 取り込み済み売上データのクリア（取り込み元を指定可能）
+async function clearImportedSales(targetSource) {
+  if (!importedSalesData) return;
+  const sources = targetSource ? [targetSource] : null;
+  const sourceLabel = targetSource === 'rebecity' ? 'リベシティ市場分'
+                     : targetSource === 'farmers' ? 'ファーマーズマーケット分'
+                     : '全て';
+
+  // 全部削除のときは強めの警告
+  if (!targetSource) {
+    const warningMsg =
+      '⚠️ 警告：全ての取り込みデータを削除します\n\n' +
+      '・リベシティ市場分・ファーマーズマーケット分の両方が削除されます\n' +
+      '・ファーマーズマーケットは2026年3月で終了したため、再度CSVをダウンロードできない可能性があります\n' +
+      '・削除すると元に戻せません\n\n' +
+      '本当に全部削除しますか？';
+    if (!confirm(warningMsg)) return;
+    // 二重確認
+    if (!confirm('もう一度確認します。\n全ての取り込みデータを本当に削除しますか？')) return;
+  } else {
+    if (!confirm(`${sourceLabel}の取り込みデータを削除します。よろしいですか？\n（顧客管理タブの履歴は影響を受けません）`)) return;
+  }
+
   try {
-    await db.collection('salesImports').doc('data').delete();
-    importedSalesData = null;
+    if (!targetSource) {
+      // 全削除
+      await db.collection('salesImports').doc('data').delete();
+      importedSalesData = null;
+    } else {
+      // 指定の取り込み元だけ削除
+      const newOrders = (importedSalesData.orders || []).filter(o => o.source !== targetSource);
+      const newFiles = (importedSalesData.importedFiles || []).filter(f => f.source !== targetSource);
+      if (newOrders.length === 0) {
+        // 結果として空になる場合はドキュメント自体を削除
+        await db.collection('salesImports').doc('data').delete();
+        importedSalesData = null;
+      } else {
+        importedSalesData = {
+          orders: newOrders,
+          importedFiles: newFiles,
+          lastUpdated: new Date().toISOString()
+        };
+        await saveSalesImports(importedSalesData);
+      }
+    }
     salesMode = 'speed';
-    showToast('🗑 取り込みデータを削除しました');
+    showToast(`🗑 ${sourceLabel}を削除しました`);
     renderSalesReport();
   } catch (e) {
     console.error(e);
@@ -1281,7 +1320,10 @@ function renderSalesReport() {
             <div>最終更新: ${lastUpdated}</div>
             <div style="margin-top:2px">取込ファイル: ${escHtml(importedFileNames)}</div>
             <div style="margin-top:2px">取込件数: ${importedSalesData.orders.length}件</div>
-            <button onclick="clearImportedSales()" style="margin-top:8px;background:white;border:1px solid #c62828;color:#c62828;border-radius:6px;padding:5px 12px;font-size:0.75rem;cursor:pointer">🗑 取り込みデータをすべて削除（再取込前のリセット用）</button>
+            <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+              <button onclick="clearImportedSales('rebecity')" style="background:white;border:1px solid #e65100;color:#e65100;border-radius:6px;padding:5px 12px;font-size:0.75rem;cursor:pointer">🗑 リベシティ分のみ削除</button>
+              <button onclick="clearImportedSales()" style="background:white;border:1px solid #999;color:#999;border-radius:6px;padding:5px 12px;font-size:0.72rem;cursor:pointer" title="ファーマーズマーケット分も含めて全部消えます">全部削除</button>
+            </div>
           </div>
         ` : `<div id="salesImportStatus" style="margin-top:8px;font-size:0.78rem;color:var(--gray)">まだ取り込みされていません</div>`}
       </div>
