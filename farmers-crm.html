@@ -1058,6 +1058,21 @@ function changeSalesMonth(delta) {
   else renderSalesReport();
 }
 
+// 取り込み済み売上データを全削除
+async function clearImportedSales() {
+  if (!confirm('取り込み済みの売上データを全て削除します。よろしいですか？\n（顧客管理タブの履歴は影響を受けません）')) return;
+  try {
+    await db.collection('salesImports').doc('data').delete();
+    importedSalesData = null;
+    salesMode = 'speed';
+    showToast('🗑 取り込みデータを削除しました');
+    renderSalesReport();
+  } catch (e) {
+    console.error(e);
+    showToast('❌ 削除に失敗しました');
+  }
+}
+
 // ファイル名から取り込み元を判定
 function detectSalesSource(filename) {
   if (filename.includes('リベシティ')) return 'rebecity';
@@ -1266,6 +1281,7 @@ function renderSalesReport() {
             <div>最終更新: ${lastUpdated}</div>
             <div style="margin-top:2px">取込ファイル: ${escHtml(importedFileNames)}</div>
             <div style="margin-top:2px">取込件数: ${importedSalesData.orders.length}件</div>
+            <button onclick="clearImportedSales()" style="margin-top:8px;background:white;border:1px solid #c62828;color:#c62828;border-radius:6px;padding:5px 12px;font-size:0.75rem;cursor:pointer">🗑 取り込みデータをすべて削除（再取込前のリセット用）</button>
           </div>
         ` : `<div id="salesImportStatus" style="margin-top:8px;font-size:0.78rem;color:var(--gray)">まだ取り込みされていません</div>`}
       </div>
