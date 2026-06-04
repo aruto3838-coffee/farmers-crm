@@ -975,10 +975,15 @@ function renderShipmentList() {
       : `<span style="display:inline-flex;align-items:center;gap:6px">${avatar}<span>${maskedName(c)}</span></span>`;
     const roast = h.roastDate ? `🔥 ${formatDate(h.roastDate)}` : '<span style="color:#ccc">—</span>';
     const grind = h.beanGrind ? `<span style="font-size:0.72rem;background:#f0f0f0;border-radius:6px;padding:1px 6px;color:#555">${escHtml(h.beanGrind)}</span>` : '';
-    const beans = [h.bean1, h.bean2, h.bean3, h.bean4].filter(Boolean);
+    // bean1〜bean8まで集計（2種×4セット対応）。同じ銘柄は個数表示にまとめる
+    const allBeans = [h.bean1, h.bean2, h.bean3, h.bean4, h.bean5, h.bean6, h.bean7, h.bean8].filter(Boolean);
+    const beanCounts = new Map();
+    allBeans.forEach(b => beanCounts.set(b, (beanCounts.get(b) || 0) + 1));
     const beanColor = b => b.includes('W') ? '#1565c0' : b.includes('N') ? '#e65100' : 'var(--brown)';
-    const beanHtml = beans.length
-      ? beans.map(b => `<div style="font-size:0.82rem;color:${beanColor(b)};font-weight:600">☕ ${escHtml(b)}</div>`).join('')
+    const beanHtml = beanCounts.size
+      ? Array.from(beanCounts.entries()).map(([b, n]) =>
+          `<div style="font-size:0.82rem;color:${beanColor(b)};font-weight:600">☕ ${escHtml(b)}${n > 1 ? ` <span style="color:var(--brown);font-weight:700">×${n}</span>` : ''}</div>`
+        ).join('')
       : '<span style="color:#ccc">—</span>';
     const bonusHtml = h.bonusBean
       ? `<div style="font-size:0.82rem;color:var(--brown)">🎁 ${escHtml(h.bonusBean)}</div>${h.bonusBeanNote ? `<div style="font-size:0.75rem;color:#aaa;margin-top:2px">${escHtml(h.bonusBeanNote)}</div>` : ''}`
