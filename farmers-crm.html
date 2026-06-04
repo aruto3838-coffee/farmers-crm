@@ -636,6 +636,47 @@
         </div>
       </div>
 
+      <!-- 4個目セクション -->
+      <div style="margin:8px 0 4px">
+        <button type="button" id="btn4thSet" onclick="toggle4thSet()"
+          style="background:none;border:1px dashed #81b898;color:#4a7c59;border-radius:6px;padding:5px 14px;font-size:0.82rem;cursor:pointer;width:100%">
+          ＋ 4個目の銘柄を追加
+        </button>
+      </div>
+      <div id="sec4thSet" style="display:none;background:#f9fffe;border:1px solid #c8e6c9;border-radius:8px;padding:12px;margin-bottom:8px">
+        <div style="font-size:0.8rem;color:#4a7c59;font-weight:600;margin-bottom:8px">📦 4個目</div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label>☕ 銘柄７</label>
+          <div class="form-row" style="margin-bottom:6px">
+            <select id="hBean7Sel" onchange="onBeanChange('7')" style="flex:1">
+              <option value="">未選択</option>
+              <option>エチオピアN</option>
+              <option>エチオピアW</option>
+              <option>ケニアW</option>
+              <option>ブルンジN</option>
+              <option value="その他">その他</option>
+            </select>
+            <input type="text" id="hBean7Custom" placeholder="銘柄名を入力" style="flex:1;display:none">
+          </div>
+          <input type="text" id="hBean7Note" placeholder="農園名など備考">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>☕ 銘柄８</label>
+          <div class="form-row" style="margin-bottom:6px">
+            <select id="hBean8Sel" onchange="onBeanChange('8')" style="flex:1">
+              <option value="">未選択</option>
+              <option>エチオピアN</option>
+              <option>エチオピアW</option>
+              <option>ケニアW</option>
+              <option>ブルンジN</option>
+              <option value="その他">その他</option>
+            </select>
+            <input type="text" id="hBean8Custom" placeholder="銘柄名を入力" style="flex:1;display:none">
+          </div>
+          <input type="text" id="hBean8Note" placeholder="農園名など備考">
+        </div>
+      </div>
+
       <div class="form-group">
         <label>🎁 おまけ銘柄</label>
         <div class="form-row" style="margin-bottom:6px">
@@ -1499,7 +1540,7 @@ function renderAnalytics() {
     (c.history||[]).forEach(h => {
       if (!h.date) return;
       if (parseInt(h.date.slice(0,4)) !== salesYear) return;
-      ['bean1','bean2','bean3','bean4','bean5','bean6','bonusBean'].forEach(field => {
+      ['bean1','bean2','bean3','bean4','bean5','bean6','bean7','bean8','bonusBean'].forEach(field => {
         const bean = h[field];
         if (!bean) return;
         beanStats[bean] = (beanStats[bean] || 0) + 1;
@@ -2936,6 +2977,7 @@ const BACKUP_HEADERS = [
   '挽き豆区分','銘柄1','銘柄1備考','銘柄2','銘柄2備考',
   '銘柄3','銘柄3備考','銘柄4','銘柄4備考',
   '銘柄5','銘柄5備考','銘柄6','銘柄6備考',
+  '銘柄7','銘柄7備考','銘柄8','銘柄8備考',
   'おまけ銘柄','おまけ備考','シール','メッセージカード','備考'
 ];
 
@@ -2964,6 +3006,7 @@ function exportBackupCSV() {
           h.bean1||'', h.bean1Note||'', h.bean2||'', h.bean2Note||'',
           h.bean3||'', h.bean3Note||'', h.bean4||'', h.bean4Note||'',
           h.bean5||'', h.bean5Note||'', h.bean6||'', h.bean6Note||'',
+          h.bean7||'', h.bean7Note||'', h.bean8||'', h.bean8Note||'',
           h.bonusBean||'', h.bonusBeanNote||'',
           h.seal||'', h.message||'', h.note||''
         ]));
@@ -3067,6 +3110,8 @@ async function restoreFromBackupCSV(input) {
           bean4: get('銘柄4'), bean4Note: get('銘柄4備考'),
           bean5: get('銘柄5'), bean5Note: get('銘柄5備考'),
           bean6: get('銘柄6'), bean6Note: get('銘柄6備考'),
+          bean7: get('銘柄7'), bean7Note: get('銘柄7備考'),
+          bean8: get('銘柄8'), bean8Note: get('銘柄8備考'),
           bonusBean: get('おまけ銘柄'), bonusBeanNote: get('おまけ備考'),
           seal: get('シール'),
           message: get('メッセージカード'),
@@ -3486,6 +3531,20 @@ function renderDetail() {
                 ${h.beanGrind?`<span class="bean-type">${escHtml(h.beanGrind)}</span>`:''}
                 ${h.bean6Note?`<div style="font-size:0.75rem;color:#888;margin-top:3px">${escHtml(h.bean6Note)}</div>`:''}
               </div>`:''}
+              ${h.bean7?`
+              <div class="bean-item">
+                <div class="bean-label">☕ 銘柄７（4個目）</div>
+                <div class="bean-name">${escHtml(h.bean7)}</div>
+                ${h.beanGrind?`<span class="bean-type">${escHtml(h.beanGrind)}</span>`:''}
+                ${h.bean7Note?`<div style="font-size:0.75rem;color:#888;margin-top:3px">${escHtml(h.bean7Note)}</div>`:''}
+              </div>`:''}
+              ${h.bean8?`
+              <div class="bean-item">
+                <div class="bean-label">☕ 銘柄８（4個目）</div>
+                <div class="bean-name">${escHtml(h.bean8)}</div>
+                ${h.beanGrind?`<span class="bean-type">${escHtml(h.beanGrind)}</span>`:''}
+                ${h.bean8Note?`<div style="font-size:0.75rem;color:#888;margin-top:3px">${escHtml(h.bean8Note)}</div>`:''}
+              </div>`:''}
               ${h.bonusBean?`
               <div class="bean-item bonus">
                 <div class="bean-label">🎁 おまけ銘柄</div>
@@ -3646,6 +3705,22 @@ function toggle3rdSet() {
   }
 }
 
+// ===== 4個目セクション トグル =====
+function toggle4thSet() {
+  const sec = document.getElementById('sec4thSet');
+  const btn = document.getElementById('btn4thSet');
+  const isOpen = sec.style.display !== 'none';
+  if (isOpen) {
+    sec.style.display = 'none';
+    btn.textContent = '＋ 4個目の銘柄を追加';
+    setBeanValue('7',''); setBeanValue('8','');
+    setVal('hBean7Note',''); setVal('hBean8Note','');
+  } else {
+    sec.style.display = '';
+    btn.textContent = '－ 4個目を閉じる';
+  }
+}
+
 // ===== 商品選択による動的表示 =====
 // ===== 商品ごとの既定価格 =====
 // 今後値段が変わる可能性あり。変更時はここを書き換える。
@@ -3695,6 +3770,8 @@ function openHistoryModal(historyId) {
     setBeanValue('4', h.bean4||''); setVal('hBean4Note', h.bean4Note||'');
     setBeanValue('5', h.bean5||''); setVal('hBean5Note', h.bean5Note||'');
     setBeanValue('6', h.bean6||''); setVal('hBean6Note', h.bean6Note||'');
+    setBeanValue('7', h.bean7||''); setVal('hBean7Note', h.bean7Note||'');
+    setBeanValue('8', h.bean8||''); setVal('hBean8Note', h.bean8Note||'');
     setBeanValue('Bonus', h.bonusBean||''); setVal('hBonusBeanNote', h.bonusBeanNote);
     setVal('hSeal', h.seal); setVal('hMessage', h.message); setVal('hNote', h.note);
     // 2個目・3個目セクションの表示制御
@@ -3704,16 +3781,21 @@ function openHistoryModal(historyId) {
     const has3rd = !!(h.bean5 || h.bean6);
     document.getElementById('sec3rdSet').style.display = has3rd ? '' : 'none';
     document.getElementById('btn3rdSet').textContent = has3rd ? '－ 3個目を閉じる' : '＋ 3個目の銘柄を追加';
+    const has4th = !!(h.bean7 || h.bean8);
+    document.getElementById('sec4thSet').style.display = has4th ? '' : 'none';
+    document.getElementById('btn4thSet').textContent = has4th ? '－ 4個目を閉じる' : '＋ 4個目の銘柄を追加';
   } else {
     setVal('hDate', todayLocal());
-    ['hShipDate','hRoastDate','hAmount','hBeanGrind','hBean1Note','hBean2Note','hBean3Note','hBean4Note','hBean5Note','hBean6Note','hBonusBeanNote','hSeal','hMessage','hNote']
+    ['hShipDate','hRoastDate','hAmount','hBeanGrind','hBean1Note','hBean2Note','hBean3Note','hBean4Note','hBean5Note','hBean6Note','hBean7Note','hBean8Note','hBonusBeanNote','hSeal','hMessage','hNote']
       .forEach(i=>setVal(i,''));
     setVal('hQuantity', 1);
-    setBeanValue('1',''); setBeanValue('2',''); setBeanValue('3',''); setBeanValue('4',''); setBeanValue('5',''); setBeanValue('6',''); setBeanValue('Bonus','');
+    setBeanValue('1',''); setBeanValue('2',''); setBeanValue('3',''); setBeanValue('4',''); setBeanValue('5',''); setBeanValue('6',''); setBeanValue('7',''); setBeanValue('8',''); setBeanValue('Bonus','');
     document.getElementById('sec2ndSet').style.display = 'none';
     document.getElementById('btn2ndSet').textContent = '＋ 2個目の銘柄を追加';
     document.getElementById('sec3rdSet').style.display = 'none';
     document.getElementById('btn3rdSet').textContent = '＋ 3個目の銘柄を追加';
+    document.getElementById('sec4thSet').style.display = 'none';
+    document.getElementById('btn4thSet').textContent = '＋ 4個目の銘柄を追加';
     setVal('hProduct', '');
   }
   onProductChange();
@@ -3824,6 +3906,10 @@ async function saveHistory() {
     bean5Note: isSingle ? getVal('hBean5Note').trim() : '',
     bean6: isSingle ? getBeanValue('6') : '',
     bean6Note: isSingle ? getVal('hBean6Note').trim() : '',
+    bean7: isSingle ? getBeanValue('7') : '',
+    bean7Note: isSingle ? getVal('hBean7Note').trim() : '',
+    bean8: isSingle ? getBeanValue('8') : '',
+    bean8Note: isSingle ? getVal('hBean8Note').trim() : '',
     bonusBean: isSingle ? getBeanValue('Bonus') : '',
     bonusBeanNote: isSingle ? getVal('hBonusBeanNote').trim() : '',
     seal: getVal('hSeal').trim(),
