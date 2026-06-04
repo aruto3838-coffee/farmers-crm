@@ -1011,23 +1011,19 @@ function renderShipmentList() {
     <div style="padding:24px;max-width:960px">
 
       <!-- クリックポストCSV作成 -->
-      <details id="clickpostCard" style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);padding:0;margin-bottom:20px;border-left:4px solid #4a90d9">
-        <summary style="cursor:pointer;padding:14px 20px;font-size:0.95rem;font-weight:700;color:#4a90d9;list-style:none;display:flex;align-items:center;justify-content:space-between">
-          <span>📮 クリックポスト用CSV作成</span>
-          <span style="font-size:0.7rem;color:#999;font-weight:400">タップで開く</span>
-        </summary>
-        <div style="padding:0 20px 18px 20px">
-          <div style="font-size:0.82rem;color:var(--gray);margin-bottom:12px">リベシティ市場のCSVをアップロードすると、クリックポスト用CSVを生成します。住所はこのアプリに保存されません。</div>
-          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-            <label style="display:flex;align-items:center;gap:8px;background:var(--green-light);border:1px solid var(--green-mid);border-radius:8px;padding:8px 14px;cursor:pointer;font-size:0.85rem;color:var(--green);font-weight:600">
-              📂 CSVを選択
-              <input type="file" accept=".csv" onchange="generateClickpostCSV(this)" style="display:none">
-            </label>
-            <span id="clickpostStatus" style="font-size:0.82rem;color:var(--gray)">ファイルを選択してください</span>
-          </div>
-          <div id="clickpostSelection"></div>
+      <!-- クリックポスト用CSV作成（常時展開） -->
+      <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;margin-bottom:20px;border-left:4px solid #4a90d9">
+        <div style="font-size:0.95rem;font-weight:700;color:#4a90d9;margin-bottom:10px">📮 クリックポスト用CSV作成</div>
+        <div style="font-size:0.82rem;color:var(--gray);margin-bottom:12px">リベシティ市場のCSVをアップロードすると、クリックポスト用CSVを生成します。住所はこのアプリに保存されません。</div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:8px;background:var(--green-light);border:1px solid var(--green-mid);border-radius:8px;padding:8px 14px;cursor:pointer;font-size:0.85rem;color:var(--green);font-weight:600">
+            📂 CSVを選択
+            <input type="file" accept=".csv" onchange="generateClickpostCSV(this)" style="display:none">
+          </label>
+          <span id="clickpostStatus" style="font-size:0.82rem;color:var(--gray)">ファイルを選択してください</span>
         </div>
-      </details>
+        <div id="clickpostSelection"></div>
+      </div>
 
       <div class="ship-header-mobile" style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
         <div style="font-size:1rem;font-weight:700;color:var(--brown);flex:1">🚚 発送予定一覧（${items.length}件）</div>
@@ -1353,9 +1349,13 @@ function renderSalesReport() {
         </button>
       </div>
 
-      <!-- CSV取込 -->
-      <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 18px;margin-bottom:20px;border-left:4px solid #4a90d9">
-        <div style="font-size:0.9rem;font-weight:700;color:#4a90d9;margin-bottom:8px">📥 注文管理CSVを取り込む</div>
+      <!-- CSV取込（折りたたみ式） -->
+      <details style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);padding:0;margin-bottom:20px;border-left:4px solid #4a90d9">
+        <summary style="cursor:pointer;padding:14px 18px;font-size:0.9rem;font-weight:700;color:#4a90d9;list-style:none;display:flex;align-items:center;justify-content:space-between">
+          <span>📥 注文管理CSVを取り込む</span>
+          <span style="font-size:0.7rem;color:#999;font-weight:400">タップで開く</span>
+        </summary>
+        <div style="padding:0 18px 14px 18px">
         <div style="font-size:0.78rem;color:var(--gray);margin-bottom:10px">リベシティ市場・ファーマーズマーケットの注文管理CSVをまとめて選択できます。キャンセルは自動で除外されます。</div>
         <label style="display:inline-flex;align-items:center;gap:8px;background:var(--green-light);border:1px solid var(--green-mid);border-radius:8px;padding:8px 14px;cursor:pointer;font-size:0.85rem;color:var(--green);font-weight:600">
           📂 CSVを選択（複数可）
@@ -1376,13 +1376,39 @@ function renderSalesReport() {
             </div>
           </div>
         ` : `<div id="salesImportStatus" style="margin-top:8px;font-size:0.78rem;color:var(--gray)">まだ取り込みされていません</div>`}
-      </div>
+        </div>
+      </details>
 
-      <!-- 年間合計 -->
+      <!-- 年間合計 + 今月速報 -->
       <div style="background:white;border-radius:var(--radius);box-shadow:var(--shadow);padding:20px 24px;margin-bottom:20px;border-left:4px solid ${isFinal?'var(--green)':'#e0c068'}">
-        <div style="font-size:0.82rem;color:var(--gray);margin-bottom:6px">📋 ${salesYear}年 年間売上合計 <span style="font-size:0.7rem;background:${isFinal?'var(--green)':'#e0c068'};color:white;padding:2px 8px;border-radius:10px;margin-left:6px">${isFinal?'確定':'速報'}</span></div>
-        <div style="font-size:2rem;font-weight:700;color:var(--brown)">${maskAmount(totalAmount)}</div>
-        <div style="font-size:0.82rem;color:var(--gray);margin-top:4px">合計 ${maskCount(totalCount)}</div>
+        <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
+          <div style="flex:1;min-width:180px">
+            <div style="font-size:0.82rem;color:var(--gray);margin-bottom:6px">📋 ${salesYear}年 年間売上合計 <span style="font-size:0.7rem;background:${isFinal?'var(--green)':'#e0c068'};color:white;padding:2px 8px;border-radius:10px;margin-left:6px">${isFinal?'確定':'速報'}</span></div>
+            <div style="font-size:2rem;font-weight:700;color:var(--brown)">${maskAmount(totalAmount)}</div>
+            <div style="font-size:0.82rem;color:var(--gray);margin-top:4px">合計 ${maskCount(totalCount)}</div>
+          </div>
+          ${(() => {
+            // 今月の速報（顧客管理ベース・常に表示）
+            const todayObj = new Date(todayLocal());
+            const ym = todayObj.getFullYear() + '-' + String(todayObj.getMonth()+1).padStart(2,'0');
+            let curMonthCount = 0, curMonthAmount = 0;
+            customers.forEach(c => {
+              (c.history||[]).forEach(h => {
+                if (!h.date || !h.amount) return;
+                if (h.date.startsWith(ym)) {
+                  curMonthCount++;
+                  curMonthAmount += parseInt(h.amount) || 0;
+                }
+              });
+            });
+            return `
+              <div style="flex:1;min-width:140px;padding-left:14px;border-left:1px solid var(--border)">
+                <div style="font-size:0.78rem;color:var(--gray);margin-bottom:6px">📆 ${todayObj.getMonth()+1}月 速報</div>
+                <div style="font-size:1.3rem;font-weight:700;color:var(--brown)">${maskAmount(curMonthAmount)}</div>
+                <div style="font-size:0.78rem;color:var(--gray);margin-top:4px">${maskCount(curMonthCount)}</div>
+              </div>`;
+          })()}
+        </div>
         <div style="font-size:0.75rem;color:#aaa;margin-top:8px">※ ${isFinal?'確定申告の「売上金額」欄に入力する数字です':'記録漏れ・複数個オーダーの記入ミスを含む可能性があります。確定申告にはCSV取込（確定値）をご利用ください'}</div>
       </div>
 
