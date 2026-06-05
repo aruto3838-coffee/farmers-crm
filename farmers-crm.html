@@ -743,6 +743,47 @@
   </div>
 </div>
 
+<!-- 分割発送モーダル -->
+<div class="modal-overlay" id="splitShipmentModal">
+  <div class="modal" style="max-width:520px">
+    <h2 id="splitShipmentTitle">📦 分割発送</h2>
+    <div style="font-size:0.82rem;color:var(--gray);margin-bottom:12px" id="splitShipmentDesc"></div>
+
+    <div class="form-group">
+      <label>先行発送する個数</label>
+      <input type="number" id="splitQty" min="1" value="1" oninput="updateSplitPreview()">
+    </div>
+
+    <div class="form-group">
+      <label>先行発送する銘柄を選択</label>
+      <div style="font-size:0.72rem;color:#888;margin-bottom:6px">2種シングルなら個数×2、1種シングルなら個数×1の銘柄を選択してください</div>
+      <div id="splitBeanList" style="background:#fafafa;border:1px solid var(--border);border-radius:6px;padding:8px;max-height:200px;overflow-y:auto"></div>
+      <div id="splitBeanCount" style="font-size:0.75rem;color:#888;margin-top:4px"></div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>先行発送日</label>
+        <input type="date" id="splitShipDate">
+      </div>
+      <div class="form-group">
+        <label>残りの発送日</label>
+        <input type="date" id="splitRemainDate">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>金額の自動計算</label>
+      <div id="splitAmountPreview" style="font-size:0.85rem;color:var(--brown);background:#fafafa;padding:8px 12px;border-radius:6px"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('splitShipmentModal')">キャンセル</button>
+      <button class="btn btn-brown" onclick="executeSplitShipment()">📦 分割する</button>
+    </div>
+  </div>
+</div>
+
 <!-- 発送連絡モーダル -->
 <div class="modal-overlay" id="shipNotifyModal">
   <div class="modal" style="max-width:520px">
@@ -1001,8 +1042,14 @@ function renderShipmentList() {
       <td onclick="switchTab('crm');selectCustomer('${c.id}')">${sealHtml}</td>
       <td onclick="switchTab('crm');selectCustomer('${c.id}')" style="font-size:0.82rem;color:#666">${roast}</td>
       <td onclick="event.stopPropagation()" style="text-align:center">
-        <button onclick="openShipNotify('${c.id}','${h.id}')" title="発送連絡の文面をコピー"
-          style="background:var(--green);color:white;border:none;border-radius:6px;padding:5px 10px;font-size:0.78rem;cursor:pointer;white-space:nowrap">📨</button>
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+          <button onclick="openShipNotify('${c.id}','${h.id}')" title="発送連絡の文面をコピー"
+            style="background:var(--green);color:white;border:none;border-radius:6px;padding:5px 10px;font-size:0.78rem;cursor:pointer;white-space:nowrap">📨</button>
+          ${(h.quantity || 1) > 1 ? `
+          <button onclick="openSplitShipment('${c.id}','${h.id}')" title="一部だけ先行発送する（分割）"
+            style="background:white;border:1px solid var(--green-mid);color:var(--green);border-radius:6px;padding:3px 8px;font-size:0.7rem;cursor:pointer;white-space:nowrap">📦 分割</button>
+          ` : ''}
+        </div>
       </td>
     </tr>`;
   }).join('');
@@ -2164,6 +2211,180 @@ async function applyBulkTracking() {
 
 function closeBulkTrackingModal() {
   document.getElementById('bulkTrackingModal').classList.remove('open');
+}
+
+// ===== 分割発送 =====
+let _splitCid = null;
+let _splitHid = null;
+
+function openSplitShipment(cid, hid) {
+  _splitCid = cid;
+  _splitHid = hid;
+  const c = getCustomer(cid);
+  const h = c.history.find(x => x.id === hid);
+  if (!h) return;
+
+  const isSingle = (h.product || '').includes('シングルオリジン');
+  const qty = parseInt(h.quantity) || 1;
+  const customerName = c.libeName || c.name || '';
+
+  document.getElementById('splitShipmentTitle').textContent = `📦 分割発送 - ${customerName}`;
+  document.getElementById('splitShipmentDesc').innerHTML =
+    `元の注文: ${escHtml(h.product || '')} × ${qty}個<br>` +
+    (isSingle ? '個数 × 2 の銘柄を選んでください（2種シングルの場合）' : '');
+
+  // 銘柄チェックボックス
+  const beanFields = ['bean1','bean2','bean3','bean4','bean5','bean6','bean7','bean8'];
+  const noteFields = ['bean1Note','bean2Note','bean3Note','bean4Note','bean5Note','bean6Note','bean7Note','bean8Note'];
+  const beanList = document.getElementById('splitBeanList');
+  const items = beanFields.map((bf, i) => ({ field: bf, noteField: noteFields[i], name: h[bf] || '', note: h[noteFields[i]] || '' })).filter(x => x.name);
+  if (items.length === 0) {
+    beanList.innerHTML = '<div style="color:#aaa;font-size:0.85rem;text-align:center;padding:12px">登録された銘柄がありません</div>';
+  } else {
+    beanList.innerHTML = items.map((it, i) => `
+      <label style="display:flex;align-items:center;gap:8px;padding:6px 4px;cursor:pointer;border-bottom:1px solid #eee">
+        <input type="checkbox" class="split-bean-cb" data-field="${it.field}" data-note-field="${it.noteField}" onchange="updateSplitPreview()" style="width:18px;height:18px;cursor:pointer">
+        <span style="flex:1">☕ ${escHtml(it.name)}${it.note ? ` <span style="color:#aaa;font-size:0.75rem">(${escHtml(it.note)})</span>` : ''}</span>
+      </label>`).join('');
+  }
+
+  // 個数入力の最大値
+  document.getElementById('splitQty').max = Math.max(1, qty - 1);
+  document.getElementById('splitQty').value = 1;
+
+  // 発送日デフォルト
+  document.getElementById('splitShipDate').value = todayLocal();
+  document.getElementById('splitRemainDate').value = h.shipDate || '';
+
+  updateSplitPreview();
+  document.getElementById('splitShipmentModal').classList.add('open');
+}
+
+function updateSplitPreview() {
+  const c = getCustomer(_splitCid);
+  if (!c) return;
+  const h = c.history.find(x => x.id === _splitHid);
+  if (!h) return;
+  const qty = parseInt(h.quantity) || 1;
+  const splitQty = parseInt(document.getElementById('splitQty').value) || 1;
+  const checked = document.querySelectorAll('.split-bean-cb:checked').length;
+  const isSingle = (h.product || '').includes('シングルオリジン');
+  const expected = isSingle && (h.product || '').includes('２種') ? splitQty * 2
+                 : isSingle && (h.product || '').includes('１種') ? splitQty * 1
+                 : splitQty;
+  const beanCountEl = document.getElementById('splitBeanCount');
+  beanCountEl.textContent = `選択中: ${checked}件 / 必要: ${expected}件`;
+  beanCountEl.style.color = checked === expected ? 'var(--green)' : '#c62828';
+
+  // 金額プレビュー
+  const totalAmount = parseInt(h.amount) || 0;
+  const splitAmount = Math.round(totalAmount * splitQty / qty);
+  const remainAmount = totalAmount - splitAmount;
+  document.getElementById('splitAmountPreview').innerHTML =
+    `先行発送 ${splitQty}個 → ¥${splitAmount.toLocaleString()}<br>` +
+    `残り ${qty - splitQty}個 → ¥${remainAmount.toLocaleString()}<br>` +
+    `<span style="font-size:0.75rem;color:#888">合計: ¥${totalAmount.toLocaleString()}（元の金額と一致）</span>`;
+}
+
+async function executeSplitShipment() {
+  const c = getCustomer(_splitCid);
+  if (!c) return;
+  const h = c.history.find(x => x.id === _splitHid);
+  if (!h) return;
+
+  const qty = parseInt(h.quantity) || 1;
+  const splitQty = parseInt(document.getElementById('splitQty').value) || 1;
+  if (splitQty < 1 || splitQty >= qty) { alert('先行発送個数は1〜' + (qty - 1) + 'の範囲で指定してください'); return; }
+
+  const checkedBoxes = Array.from(document.querySelectorAll('.split-bean-cb:checked'));
+  if (checkedBoxes.length === 0) { alert('先行発送する銘柄を選択してください'); return; }
+
+  const splitShipDate = document.getElementById('splitShipDate').value;
+  const remainShipDate = document.getElementById('splitRemainDate').value;
+  if (!splitShipDate) { alert('先行発送日を入力してください'); return; }
+
+  // 確認
+  if (!confirm(`${splitQty}個を先行発送として分割します。よろしいですか？\n（元の履歴は ${qty - splitQty}個に変更されます）`)) return;
+
+  const totalAmount = parseInt(h.amount) || 0;
+  const splitAmount = Math.round(totalAmount * splitQty / qty);
+  const remainAmount = totalAmount - splitAmount;
+
+  // 移動する銘柄を集める
+  const movedBeans = {};
+  const splitFields = [];
+  checkedBoxes.forEach((cb, i) => {
+    const f = cb.dataset.field;
+    const nf = cb.dataset.noteField;
+    splitFields.push({ field: f, noteField: nf, name: h[f], note: h[nf] || '' });
+  });
+
+  // 新しい履歴（先行発送分）を作成
+  const newHistory = {
+    id: generateId(),
+    date: h.date,
+    shipDate: splitShipDate,
+    roastDate: h.roastDate || '',
+    amount: splitAmount,
+    quantity: splitQty,
+    product: h.product,
+    beanGrind: h.beanGrind || '',
+    bean1: '', bean1Note: '', bean2: '', bean2Note: '',
+    bean3: '', bean3Note: '', bean4: '', bean4Note: '',
+    bean5: '', bean5Note: '', bean6: '', bean6Note: '',
+    bean7: '', bean7Note: '', bean8: '', bean8Note: '',
+    bonusBean: '', bonusBeanNote: '',
+    seal: h.seal || '',
+    message: h.message || '',
+    note: (h.note ? h.note + ' / ' : '') + `（元注文 ${qty}個から ${splitQty}個を先行発送）`,
+    shipped: false,
+    trackingNos: [],
+    trackingNo: ''
+  };
+
+  // 銘柄を新履歴へ詰める（bean1, bean2 ... の順番に）
+  splitFields.forEach((sf, i) => {
+    const targetField = `bean${i+1}`;
+    const targetNoteField = `bean${i+1}Note`;
+    newHistory[targetField] = sf.name;
+    newHistory[targetNoteField] = sf.note;
+  });
+
+  // 元の履歴から銘柄を削除（チェックされた銘柄を空に）
+  splitFields.forEach(sf => {
+    h[sf.field] = '';
+    h[sf.noteField] = '';
+  });
+
+  // 元の履歴の銘柄を詰める（bean1, bean2 の順に再配置）
+  const remainBeanFields = ['bean1','bean2','bean3','bean4','bean5','bean6','bean7','bean8'];
+  const remainBeans = [];
+  remainBeanFields.forEach(f => {
+    if (h[f]) {
+      remainBeans.push({ name: h[f], note: h[f + 'Note'] || '' });
+      h[f] = '';
+      h[f + 'Note'] = '';
+    }
+  });
+  remainBeans.forEach((rb, i) => {
+    h[`bean${i+1}`] = rb.name;
+    h[`bean${i+1}Note`] = rb.note;
+  });
+
+  // 元の履歴を更新
+  h.quantity = qty - splitQty;
+  h.amount = remainAmount;
+  if (remainShipDate) h.shipDate = remainShipDate;
+  h.note = (h.note || '') + ` / （元 ${qty}個 → ${splitQty}個を分割発送）`;
+
+  // 履歴に新しい先行発送分を追加
+  c.history.push(newHistory);
+
+  await dbSave(c);
+  closeModal('splitShipmentModal');
+  showToast(`📦 分割しました（${splitQty}個 + ${qty - splitQty}個）`);
+  if (currentTab === 'ship') renderShipmentList();
+  if (selectedCustomerId === c.id) renderDetail();
 }
 
 // ===== 発送連絡 =====
